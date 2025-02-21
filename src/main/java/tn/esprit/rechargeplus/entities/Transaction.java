@@ -1,113 +1,77 @@
 package tn.esprit.rechargeplus.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import lombok.*;
+import org.springframework.format.annotation.DateTimeFormat;
+
 import java.util.Date;
 
 @Entity
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@ToString
 public class Transaction {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long idTransaction;
 
-    private Date created_at;
+    @NotNull
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date createdAt;
 
     private String source;
-
     private String destination;
 
+    @Positive(message = "Amount must be a positive value")
     private double amount;
 
     @Enumerated(EnumType.STRING)
     private Transaction_Status status;
 
+    // Relationships to other modules (optional)
     @ManyToOne
     private Loan loan;
 
     @ManyToOne
+    @JoinColumn(name = "idAccount")
     private Account account;
 
     @ManyToOne
     private InvestmentRequest investment_request;
-
-    // Getter and Setter for idTransaction
-    public long getIdTransaction() {
-        return idTransaction;
-    }
-
-    public void setIdTransaction(long idTransaction) {
-        this.idTransaction = idTransaction;
-    }
-
-    // Getter and Setter for created_at
-    public Date getCreated_at() {
-        return created_at;
-    }
-
-    public void setCreated_at(Date created_at) {
-        this.created_at = created_at;
-    }
-
-    // Getter and Setter for source
-    public String getSource() {
-        return source;
-    }
-
-    public void setSource(String source) {
-        this.source = source;
-    }
-
-    // Getter and Setter for destination
-    public String getDestination() {
-        return destination;
-    }
-
-    public void setDestination(String destination) {
-        this.destination = destination;
-    }
-
-    // Getter and Setter for amount
-    public double getAmount() {
-        return amount;
-    }
-
-    public void setAmount(double amount) {
-        this.amount = amount;
-    }
-
-    // Getter and Setter for status
-    public Transaction_Status getStatus() {
-        return status;
-    }
-
-    public void setStatus(Transaction_Status status) {
-        this.status = status;
-    }
-
-    // Getter and Setter for loan
-    public Loan getLoan() {
-        return loan;
-    }
-
-    public void setLoan(Loan loan) {
-        this.loan = loan;
-    }
-
-    // Getter and Setter for account
     public Account getAccount() {
         return account;
     }
+    private double fee;
+    private boolean isReversed = false;
+    private String reversalReason;
+    private String ipAddress; // IP Address Tracking
 
-    public void setAccount(Account account) {
-        this.account = account;
+    @ManyToOne
+    private Transaction originalTransaction;
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = new Date();
+        }
     }
 
-    // Getter and Setter for investment_request
-    public InvestmentRequest getInvestment_request() {
-        return investment_request;
+    public double getTotalAmount() {
+        return this.amount + this.fee;
     }
 
-    public void setInvestment_request(InvestmentRequest investment_request) {
-        this.investment_request = investment_request;
+    public boolean isReversible() {
+        return !this.isReversed && this.status == Transaction_Status.COMPLETED;
+    }
+
+    // Assumes destination is stored as "ACC-{accountId}"
+    public Long getDestinationAccountId() {
+        return Long.parseLong(this.destination.replace("ACC-", ""));
     }
 }

@@ -1,80 +1,153 @@
 package tn.esprit.rechargeplus.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.AllArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import tn.esprit.rechargeplus.entities.Transaction;
-import tn.esprit.rechargeplus.entities.Transaction_Status;
-import tn.esprit.rechargeplus.service.TransactionService;
-
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import tn.esprit.rechargeplus.service.iTransactionService;
 import java.util.List;
-import java.util.Optional;
 
 @RestController
+@AllArgsConstructor
 @RequestMapping("/api/transactions")
+@Validated // Activation of parameter validation
 public class TransactionController {
 
-    @Autowired
-    private TransactionService transactionService;  // Injecting the TransactionService
+    private final iTransactionService transactionService;
 
-    // Method to create a static transaction for testing
-    public Transaction createStaticTransaction() {
-        Transaction transaction = new Transaction();
-        transaction.setIdTransaction(1L);  // Static ID
-        try {
-            // Parse the string into a Date object
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd");
-            Date date = sdf.parse("2025/02/18");
-            transaction.setCreated_at(date);  // Set the date
-        } catch (Exception e) {
-            e.printStackTrace();
+    /**
+     * Save a new transaction.
+     */
+    @PostMapping
+    public ResponseEntity<Transaction> saveTransaction(@RequestBody Transaction transaction) {
+        Transaction savedTransaction = transactionService.saveTransaction(transaction);
+        return new ResponseEntity<>(savedTransaction, HttpStatus.CREATED);
+    }
+
+    /**
+     * Get a transaction by its ID.
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<Transaction> getTransactionById(@PathVariable Long id) {
+        Transaction transaction = transactionService.getTransactionById(id);
+        if (transaction == null) {
+            return ResponseEntity.notFound().build();
         }
-        transaction.setSource("Test Source");
-        transaction.setDestination("Test Destination");
-        transaction.setAmount(100.0);  // Static amount
-        transaction.setStatus(Transaction_Status.PENDING);  // Example status
-        return transaction;
+        return ResponseEntity.ok(transaction);
     }
 
-    // Post method to create a transaction
-    @PostMapping("/create")
-    public ResponseEntity<Transaction> createTransaction(@RequestBody Transaction transaction) {
-        return ResponseEntity.ok(transactionService.saveTransaction(createStaticTransaction()));
-    }
-
-    // Get all transactions
+    /**
+     * Get all transactions.
+     */
     @GetMapping("/all")
     public ResponseEntity<List<Transaction>> getAllTransactions() {
-        return ResponseEntity.ok(transactionService.getAllTransactions());
+        List<Transaction> transactions = transactionService.getAllTransactions();
+        return ResponseEntity.ok(transactions);
     }
 
-    // Get a transaction by ID
-    @GetMapping("/get/{id}")
-    public ResponseEntity<Transaction> getTransactionById(@PathVariable long id) {
-        Optional<Transaction> transaction = transactionService.getTransactionById(id);
-        return transaction.map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+    /**
+     * Update an existing transaction.
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<Transaction> updateTransaction(
+            @PathVariable Long id,
+            @RequestBody Transaction transactionDetails) {
+
+        Transaction updatedTransaction = transactionService.updateTransaction(id, transactionDetails);
+        if (updatedTransaction == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(updatedTransaction);
     }
 
-    // Get a static transaction for testing purposes
-    @GetMapping("/static")
-    public ResponseEntity<Transaction> getStaticTransaction() {
-        Transaction staticTransaction = createStaticTransaction();
-        return ResponseEntity.ok(staticTransaction);
-    }
-
-    // Update a transaction by ID
-    @PutMapping("/update/{id}")
-    public ResponseEntity<Transaction> updateTransaction(@PathVariable long id, @RequestBody Transaction transactionDetails) {
-        return ResponseEntity.ok(transactionService.updateTransaction(id, transactionDetails));
-    }
-
-    // Delete a transaction by ID
-    @DeleteMapping("/delete/{id}")
-    public ResponseEntity<Void> deleteTransaction(@PathVariable long id) {
+    /**
+     * Delete a transaction by its ID.
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteTransaction(@PathVariable Long id) {
         transactionService.deleteTransaction(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Transfer funds between two accounts.
+     */
+    @PostMapping("/transfer")
+    public ResponseEntity<Transaction> transferFunds(
+            @RequestParam Long sourceAccountId,
+            @RequestParam Long targetAccountId,
+            @RequestParam double amount,
+            @RequestParam String ipAddress) {
+
+        if (amount <= 0) {
+            return ResponseEntity.badRequest().body(null); // Validation for positive amount
+        }
+
+        Transaction transaction = transactionService.transferBetweenAccounts(sourceAccountId, targetAccountId, amount, ipAddress);
+        return new ResponseEntity<>(transaction, HttpStatus.CREATED);
+    }
+
+    /**
+     * Reverse a transaction.
+     */
+    @PostMapping("/reverse/{transactionId}")
+    public ResponseEntity<Transaction> reverseTransaction(
+            @PathVariable Long transactionId,
+            @RequestParam String reason) {
+
+        if (reason == null || reason.isEmpty()) {
+            return ResponseEntity.badRequest().body(null); // Validation for non-empty reason
+        }
+
+        Transaction reversal = transactionService.reverseTransaction(transactionId, reason);
+        if (reversal == null) {
+            return ResponseEntity.notFound().build(); // If the transaction to reverse is not found
+        }
+        return new ResponseEntity<>(reversal, HttpStatus.OK);
+    }
+
+    /**
+     * Deposit funds into an account.
+     */
+    @PostMapping("/deposit")
+    public ResponseEntity<Transaction> depositFunds(
+            @RequestParam Long accountId,
+            @RequestParam double amount,
+            @RequestParam String ipAddress) {
+
+        if (amount <= 0) {
+            return ResponseEntity.badRequest().body(null); // Validation for positive amount
+        }
+
+        Transaction transaction = transactionService.depositFunds(accountId, amount, ipAddress);
+        return new ResponseEntity<>(transaction, HttpStatus.CREATED);
+    }
+
+    /**
+     * Withdraw funds from an account.
+     */
+    @PostMapping("/withdraw")
+    public ResponseEntity<Transaction> withdrawFunds(
+            @RequestParam Long accountId,
+            @RequestParam double amount,
+            @RequestParam String ipAddress) {
+
+        if (amount <= 0) {
+            return ResponseEntity.badRequest().body(null); // Validation for positive amount
+        }
+
+        Transaction transaction = transactionService.withdrawFunds(accountId, amount, ipAddress);
+        return new ResponseEntity<>(transaction, HttpStatus.CREATED);
+    }
+
+    /**
+     * Get transactions by account ID.
+     */
+    @GetMapping("/account/{accountId}")
+    public ResponseEntity<List<Transaction>> getTransactionsByAccount(@PathVariable Long accountId) {
+        List<Transaction> transactions = transactionService.getTransactionsByAccount(accountId);
+        return ResponseEntity.ok(transactions);
     }
 }
