@@ -17,7 +17,8 @@ public class Repayment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long idRepayment;
-    private Date Repaymentdate;
+    private Date expectedPaymentDate;
+    private Date actualPaymentDate;
     private double monthly_amount;
     @Enumerated(value = EnumType.STRING)
     private Repayment_Status status;
@@ -32,13 +33,6 @@ public class Repayment {
         this.idRepayment = idRepayment;
     }
 
-    public Date getRepaymentdate() {
-        return Repaymentdate;
-    }
-
-    public void setRepaymentdate(Date repaymentdate) {
-        Repaymentdate = repaymentdate;
-    }
 
     public double getMonthly_amount() {
         return monthly_amount;
@@ -62,5 +56,21 @@ public class Repayment {
 
     public void setLoan(Loan loan) {
         this.loan = loan;
+    }
+
+    public Date getExpectedPaymentDate() {
+        return expectedPaymentDate;
+    }
+
+    public void setExpectedPaymentDate(Date expectedPaymentDate) {
+        this.expectedPaymentDate = expectedPaymentDate;
+    }
+
+    public Date getActualPaymentDate() {
+        return actualPaymentDate;
+    }
+
+    public void setActualPaymentDate(Date actualPaymentDate) {
+        this.actualPaymentDate = actualPaymentDate;
     }
 }
