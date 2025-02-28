@@ -43,9 +43,9 @@ public class CreditScoreService implements ICreditScoreService {
     }
 
     /**
-     * Vérifie si l'utilisateur a des prêts existants (Ancien Client).
+     * Vérifie si l'utilisateur a des prêts deja remboursés (Ancien Client).
      */
-    private boolean hasExistingLoan(long accountId) {
+    public boolean hasExistingLoan(long accountId) {
         List<Loan> loans = loanRepository.findByTransactionsAccountIdAndStatus(accountId, Loan_Status.REPAID);
         return !loans.isEmpty();
     }
@@ -54,40 +54,12 @@ public class CreditScoreService implements ICreditScoreService {
         return transactions.isEmpty();
     }
 
-    private boolean hasActiveLoans(Long accountId) {
+    public boolean hasActiveLoans(Long accountId) {
         List<Loan> activeLoans = loanRepository.findByTransactionsAccountIdAndStatusIn(accountId,
                 List.of(Loan_Status.IN_PROGRESS, Loan_Status.DEFAULT));
         return !activeLoans.isEmpty();
     }
- /*   public String getLoanDecision(Long accountId) {
-        double creditScore = calculateCreditScore(accountId);
 
-        // Vérifier si le client n'a jamais effectué de recharges
-        double NbActiveMonths = getActiveMonths(accountId).size();
-
-        // Vérifier si le client a des crédits en cours (en attente ou non remboursés)
-        boolean hasActiveLoans = hasActiveLoans(accountId);
-
-        if (NbActiveMonths<3) {
-            return String.format("🔴 Score : %.2f%% ❌ Pas de crédit - Compte n'est pas actif ou n'a pas effectué de recharge pendant 3mois", creditScore);
-        }
-
-        if (hasActiveLoans) {
-            return String.format("🔴 Score : %.2f%% ❌ Pas de crédit - Le client a déjà un prêt en cours ou non encore remboursé.", creditScore);
-        }
-
-        if (creditScore <= 50) {
-            return String.format("🔴 Score : %.2f%% ❌ Pas de crédit - Score insuffisant.", creditScore);
-        }
-
-        if (creditScore >= 90) {
-            return String.format("🔵 Score : %.2f%% ✅ Plafond : 300%% de la moyenne mensuelle de recharge | Durée max : 6 mois", creditScore);
-        } else if (creditScore >= 70) {
-            return String.format("🟢 Score : %.2f%% ✅ Plafond : 200%% de la moyenne mensuelle de recharge | Durée max : 4 mois", creditScore);
-        } else {
-            return String.format("🟠 Score : %.2f%% ✅ Plafond : 100%% de la moyenne mensuelle de recharge | Durée max : 2 mois", creditScore);
-        }
-    }*/
     public String getLoanDecision(Long accountId) {
         double creditScore = calculateCreditScore(accountId);
 
@@ -113,54 +85,28 @@ public class CreditScoreService implements ICreditScoreService {
         }
 
         double creditLimit;
-        int maxDuration;
+
 
         if (creditScore >= 90) {
             creditLimit = 3 * averageMonthlyRecharge;
-            maxDuration = 6;
+
         } else if (creditScore >= 70) {
             creditLimit = 2 * averageMonthlyRecharge;
-            maxDuration = 4;
+
         } else {
             creditLimit = averageMonthlyRecharge;
-            maxDuration = 2;
+
         }
         if (creditScore >= 90) {
-            return String.format("🔵 Score : %.2f%% ✅ Plafond : 300%% de la moyenne mensuelle de recharge soit  %.2f TND  | Durée max : %d mois", creditScore, creditLimit, maxDuration);
+            return String.format("🔵 Score : %.2f%% ✅ Plafond : 300%% de la moyenne mensuelle de recharge soit  %.2f TND  ", creditScore, creditLimit);
         } else if (creditScore >= 70) {
-            return String.format("🟢 Score : %.2f%% ✅ Plafond : 200%% de la moyenne mensuelle de recharge soit  %.2f TND  | Durée max : %d mois", creditScore, creditLimit, maxDuration);
+            return String.format("🟢 Score : %.2f%% ✅ Plafond : 200%% de la moyenne mensuelle de recharge soit  %.2f TND  ", creditScore, creditLimit);
         } else {
-            return String.format("🟠 Score : %.2f%% ✅ Plafond : 100%% de la moyenne mensuelle de recharge soit  %.2f TND | Durée max : %d mois", creditScore, creditLimit, maxDuration);
+            return String.format("🟠 Score : %.2f%% ✅ Plafond : 100%% de la moyenne mensuelle de recharge soit  %.2f TND ", creditScore, creditLimit);
         }
 
-       // return String.format("🟢 Score : %.2f%% ✅ Plafond : %.2f TND | Durée max : %d mois", creditScore, creditLimit, maxDuration);
     }
 
-    /*  public boolean detectFraudulentManipulations(Long accountId) {
-        // Récupérer toutes les recharges effectuées par le client (transactions entrantes du type "SYSTEM")
-        List<Transaction> recharges = transactionRepository.findByAccountIdAndSourceIsLike(accountId, "SYSTEM");
-
-        // Récupérer toutes les transactions de retrait effectuées par le client
-        List<Transaction> withdrawals = transactionRepository.findByAccountIdAndDestinationIsLike(accountId, "SYSTEM");
-
-        // Vérifier s'il y a des recharges suivies de retraits suspects
-        for (Transaction recharge : recharges) {
-            for (Transaction withdrawal : withdrawals) {
-                long daysBetween = ChronoUnit.DAYS.between(
-                        recharge.getCreatedAt().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime(),
-                        withdrawal.getCreatedAt().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
-                );
-                // Vérification des critères de manipulation
-                if (daysBetween >= 0 && daysBetween < 3) {
-                    // Vérification du montant du retrait (>= 80% de la recharge)
-                    if (withdrawal.getAmount() >= 0.8 * recharge.getAmount()) {
-                        return true; // Détection d'une manipulation frauduleuse
-                    }
-                }
-            }
-        }
-        return false; // Aucune fraude détectée
-    }*/
   public List<Long> detectFraudulentManipulations(Long accountId) {
       List<Transaction> recharges = transactionRepository.findByAccountIdAndSourceIsLike(accountId, "SYSTEM");
       List<Transaction> withdrawals = transactionRepository.findByAccountIdAndDestinationIsLike(accountId, "SYSTEM");
@@ -187,24 +133,6 @@ public class CreditScoreService implements ICreditScoreService {
       return fraudulentTransactionIds;
   }
 
-
-
-
-
-    /**
-     * Calcule l'écart-type des montants d'une série de transactions.
-     */
-    private double calculateStandardDeviation(double[] amounts) {
-        if (amounts.length == 0) {
-            return -1; // Indique que la liste est vide
-        }
-        double mean = Arrays.stream(amounts).average().orElse(0);
-        double variance = Arrays.stream(amounts)
-                .map(x -> Math.pow(x - mean, 2))
-                .average()
-                .orElse(0);
-        return Math.sqrt(variance);
-    }
     public double calculateAverageMonthlyRecharge(Long accountId) {
         // Récupérer toutes les recharges effectuées par le client
         List<Transaction> allRecharges = transactionRepository.findByAccountIdAndSourceIsLike(accountId, "SYSTEM");
@@ -232,7 +160,20 @@ public class CreditScoreService implements ICreditScoreService {
         return monthlySums.values().stream().mapToDouble(Double::doubleValue).average().orElse(0);
     }
 
-
+    /**
+     * Calcule l'écart-type des montants d'une série de transactions.
+     */
+    private double calculateStandardDeviation(double[] amounts) {
+        if (amounts.length == 0) {
+            return -1; // Indique que la liste est vide
+        }
+        double mean = Arrays.stream(amounts).average().orElse(0);
+        double variance = Arrays.stream(amounts)
+                .map(x -> Math.pow(x - mean, 2))
+                .average()
+                .orElse(0);
+        return Math.sqrt(variance);
+    }
     /**
      * Calcule la stabilité des recharges pour le client.
      */
@@ -264,7 +205,7 @@ public class CreditScoreService implements ICreditScoreService {
     /**
      * Récupère les mois durant lesquels le client a été actif (ex: recharges, paiements, transactions).
      */
-    private Set<String> getActiveMonths(Long accountId) {
+    public Set<String> getActiveMonths(Long accountId) {
         Set<String> activeMonths = new HashSet<>();
 
         for (Transaction transaction : accountRepository.getReferenceById(accountId).getTransactions()) {

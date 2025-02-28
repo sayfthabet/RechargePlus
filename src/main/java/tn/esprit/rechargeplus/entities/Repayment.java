@@ -20,8 +20,11 @@ public class Repayment {
     private Date expectedPaymentDate;
     private Date actualPaymentDate;
     private double monthly_amount;
+    private double interest;
     @Enumerated(value = EnumType.STRING)
     private Repayment_Status status;
+    private double remainingPrincipal;
+    private double repaidPrincipal;
     @ManyToOne
     private Loan loan;
 
@@ -72,5 +75,29 @@ public class Repayment {
 
     public void setActualPaymentDate(Date actualPaymentDate) {
         this.actualPaymentDate = actualPaymentDate;
+    }
+
+    public double getInterest() {
+        return interest;
+    }
+
+    public void setInterest(double interest) {
+        this.interest = interest;
+    }
+
+    public double getRemainingPrincipal() {
+        return remainingPrincipal;
+    }
+
+    public void setRemainingPrincipal(double remainingPrincipal) {
+        this.remainingPrincipal = remainingPrincipal;
+    }
+
+    public double getRepaidPrincipal() {
+        return repaidPrincipal;
+    }
+
+    public void setRepaidPrincipal(double repaidPrincipal) {
+        this.repaidPrincipal = repaidPrincipal;
     }
 }

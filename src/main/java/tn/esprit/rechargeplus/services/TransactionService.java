@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tn.esprit.rechargeplus.entities.Account;
+import tn.esprit.rechargeplus.entities.Loan;
 import tn.esprit.rechargeplus.entities.Transaction;
 import tn.esprit.rechargeplus.entities.Transaction_Status;
 import tn.esprit.rechargeplus.repositories.TransactionRepository;
@@ -225,4 +226,33 @@ public class TransactionService implements iTransactionService {
       //
          return transactionRepository.findByAccountId(accountId);
     }
+
+
+
+    /// ////////////////AJOUT POUR loan ET REPAYMENTS!
+    @Override
+    @Transactional
+    public  Transaction depositLoan(Long accountId, double amount, String ipAddress, Loan loan) {
+        Account account = accountService.retrieveAccountById(accountId);
+        if (account == null) {
+            throw new AccountNotFoundException("Account not found");
+        }
+        // Fraud check for large deposits can be added
+        fraudService.checkForFraud(amount, ipAddress);
+
+        account.setAmount(account.getAmount() + amount);
+        accountService.updateAccount(account);
+
+        Transaction transaction = new Transaction();
+        transaction.setSource("SYSTEM");
+        transaction.setDestination("ACC-" + accountId);
+        transaction.setAmount(amount);
+        transaction.setFee(0);
+        transaction.setStatus(Transaction_Status.COMPLETED);
+        transaction.setIpAddress(ipAddress);
+        transaction.setLoan(loan);
+        logger.info("Deposit of {} to account {}", amount, accountId);
+        return transactionRepository.save(transaction);
+    }
+
 }
