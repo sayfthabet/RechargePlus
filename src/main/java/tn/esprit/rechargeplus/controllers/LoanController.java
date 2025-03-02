@@ -43,12 +43,13 @@ public class LoanController {
     public Loan getLoan(@PathVariable Long id) {
         return loanservice.retrieveLoan(id);
     }
-    @PostMapping("/createLoanWithType/{accountId}/{requestedAmount}/{requestedDuration}/{repaymentType}")
+    @PostMapping("/createLoanWithType/{accountId}/{requestedAmount}/{requestedDuration}/{repaymentType}/{guarantorId}")
     public Loan createLoan(@PathVariable Long accountId,
                            @PathVariable double requestedAmount,
                            @PathVariable int requestedDuration,
-                           @PathVariable String repaymentType) {
-        return loanservice.createLoan(accountId, requestedAmount, requestedDuration, repaymentType);
+                           @PathVariable String repaymentType,
+                           @PathVariable Long guarantorId) {
+        return loanservice.createLoan(accountId, requestedAmount, requestedDuration, repaymentType,guarantorId);
     }
     @GetMapping("/{loanId}/ContratPdf")
     public ResponseEntity<byte[]> generateLoanPdf(@PathVariable Long loanId) {

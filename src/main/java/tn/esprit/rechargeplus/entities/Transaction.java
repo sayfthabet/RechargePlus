@@ -41,7 +41,7 @@ public class Transaction {
 
     // Relationships to other modules (optional)
     @ManyToOne
-   // @JsonBackReference
+    //@JsonBackReference
     @JsonIgnore
     private Loan loan;
 

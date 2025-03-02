@@ -13,10 +13,10 @@ public interface ILoanService {
     List<Loan> retriveAll();
     List<Map<String, Object>> calculateConstantAnnuity(double loanAmount, double interestRate, double duration);
     List<Map<String, Object>> calculateConstantAmortization(double loanAmount, double interestRate, double duration);
-    Map<String, Object> getLoanRepaymentPlan(Long accountId, double requestedAmount, int requestedDuration) ;
+    Map<String, Object> getLoanRepaymentPlan(Long accountId, double requestedAmount, double requestedDuration) ;
    int calculateAnnuityDuration(double P, double Rm, double i) ;
    int calculateAmortizationDuration(double P, double Rm, double i) ;
-   Loan createLoan(Long accountId, double requestedAmount, int requestedDuration, String repaymentType) ;
+    Loan createLoan(Long accountId, double requestedAmount, int requestedDuration, String repaymentType, Long guarantorId) ;
    byte[] generateLoanDocument(Long loanId) throws java.io.IOException ;
 
 

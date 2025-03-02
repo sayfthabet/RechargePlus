@@ -31,10 +31,12 @@ public class Loan {
     @Lob // Annonce que cet attribut contient de grandes données (comme un fichier)
     private byte[] loanPdf;
     @OneToMany (mappedBy = "loan")
-    @JsonManagedReference
+    //@JsonManagedReference
     private List<Transaction> transactions;
     @OneToMany (mappedBy = "loan")
     private List<Repayment> repayments;
+    @OneToOne
+    private Guarantor guarantor;
 
     public long getIdLoan() {
         return idLoan;

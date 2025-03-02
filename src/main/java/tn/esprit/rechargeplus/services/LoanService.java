@@ -1,36 +1,25 @@
 package tn.esprit.rechargeplus.services;
 
 import com.itextpdf.io.image.ImageDataFactory;
-import com.itextpdf.kernel.pdf.PdfDocument;
 import jakarta.mail.*;
 import jakarta.mail.internet.*;
+import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
-import tn.esprit.rechargeplus.entities.Loan_Status;
-import tn.esprit.rechargeplus.entities.Transaction_Status;
-import tn.esprit.rechargeplus.entities.Transaction;
-import tn.esprit.rechargeplus.entities.Repayment_Status;
-import tn.esprit.rechargeplus.entities.Repayment;
+import tn.esprit.rechargeplus.entities.*;
+import tn.esprit.rechargeplus.repositories.IGuarantorRepository;
 import tn.esprit.rechargeplus.repositories.ILoanRepository;
-import tn.esprit.rechargeplus.entities.Loan;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
-import jakarta.mail.*;
-import jakarta.mail.internet.*;
 //import javax.activation.DataHandler;
 import jakarta.activation.DataHandler;
 import jakarta.mail.util.ByteArrayDataSource;
+
 import java.io.IOException;
 import java.util.Properties;
 
-import org.jsoup.nodes.Document ;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -41,93 +30,90 @@ import java.util.*;
 import java.util.List;
 
 
-import com.itextpdf.layout.element.*;
-import com.itextpdf.kernel.pdf.PdfWriter;
-
-import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.element.Image;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.List;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
-import org.springframework.stereotype.Service;
+
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
-import jakarta.activation.DataSource;
 //import javax.activation.*;
 
 
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import tn.esprit.rechargeplus.repositories.IRepaymentRepository;
 
 
 @Service
 @RequiredArgsConstructor
-public class LoanService  implements  ILoanService {
+
+public class LoanService implements ILoanService {
 
 
 
     @Autowired
-    private JavaMailSender mailSender;
-    @Autowired
-     ILoanRepository loanRepository;
+    ILoanRepository loanRepository;
     @Autowired
     IRepaymentRepository repaymentRepository;
     @Autowired
+    IGuarantorRepository guarantorRepository;
+    @Autowired
     CreditScoreService creditScoreService;
-
     @Autowired
     TransactionService transactionService;
+
+
+    private static final Logger log = LoggerFactory.getLogger(LoanService.class);
+    private static final Logger logger = LoggerFactory.getLogger(LoanService.class); // Logger pour la classe LoanService
+
+
     @Override
     public Loan addLoan(Loan loan) {
         return loanRepository.save(loan);
     }
+
     @Override
-    public Loan updateLoan(Loan loan) {return loanRepository.save(loan);}
+    public Loan updateLoan(Loan loan) {
+        return loanRepository.save(loan);
+    }
+
     @Override
     public void remouveLoan(Long numLoan) {
         loanRepository.deleteById(numLoan);
     }
+
     @Override
     public Loan retrieveLoan(Long numLoan) {
         return loanRepository.findById(numLoan).orElse(null);
     }
+
     @Override
     public List<Loan> retriveAll() {
         return (List<Loan>) loanRepository.findAll();
     }
 
-    private static final Logger logger = LoggerFactory.getLogger(LoanService.class); // Logger pour la classe LoanService
 
-
-
-        @Override
-        public  int calculateAnnuityDuration(double P, double Rm, double i) {
-            int N = 1;
-            int maxDuration = 240; // Par exemple, limiter à 20 ans (240 mois)
-
-            while (N <= maxDuration) {
-                double A = (P * i /12/ 100) / (1 - Math.pow(1 + i /12/ 100, -N)); // Formule de l'annuité
-                if (A <= Rm) {
-                    return N;
-                }
-                N++;
-            }
-
-            log.warn("⚠️ Impossible de calculer une durée viable pour l'annuité (N > {}).", maxDuration);
-            throw new IllegalArgumentException("Impossible de trouver une durée réaliste pour le remboursement par annuité.");
-        }
     @Override
-    public  int calculateAmortizationDuration(double P, double Rm, double i) {
+    public int calculateAnnuityDuration(double P, double Rm, double i) {
         int N = 1;
         int maxDuration = 240; // Par exemple, limiter à 20 ans (240 mois)
 
         while (N <= maxDuration) {
-            double firstPayment = (P / N) + (P * i/12 / 100); // Première mensualité (plus haute)
+            double A = (P * i / 12 / 100) / (1 - Math.pow(1 + i / 12 / 100, -N)); // Formule de l'annuité
+            if (A <= Rm) {
+                return N;
+            }
+            N++;
+        }
+
+        log.warn("⚠️ Impossible de calculer une durée viable pour l'annuité (N > {}).", maxDuration);
+        throw new IllegalArgumentException("Impossible de trouver une durée réaliste pour le remboursement par annuité.");
+    }
+
+    @Override
+    public int calculateAmortizationDuration(double P, double Rm, double i) {
+        int N = 1;
+        int maxDuration = 240; // Par exemple, limiter à 20 ans (240 mois)
+
+        while (N <= maxDuration) {
+            double firstPayment = (P / N) + (P * i / 12 / 100); // Première mensualité (plus haute)
             if (firstPayment <= Rm) {
                 return N;
             }
@@ -146,7 +132,7 @@ public class LoanService  implements  ILoanService {
         BigDecimal loan = BigDecimal.valueOf(loanAmount);
         BigDecimal rate = BigDecimal.valueOf(interestRate).divide(BigDecimal.valueOf(12 * 100), 10, RoundingMode.HALF_EVEN);
         BigDecimal annuity = loan.multiply(rate)
-                .divide(BigDecimal.ONE.subtract(BigDecimal.ONE.add(rate).pow(- (int) duration, new MathContext(10))
+                .divide(BigDecimal.ONE.subtract(BigDecimal.ONE.add(rate).pow(-(int) duration, new MathContext(10))
                 ), 2, RoundingMode.HALF_EVEN);
 
         BigDecimal remainingBalance = loan;
@@ -209,10 +195,12 @@ public class LoanService  implements  ILoanService {
         return schedule;
     }
 
+
+
     // Génération du planning de remboursement avec annuités constantes
     public static List<Double> generateAnnuitySchedule(double P, int N, double i) {
         List<Double> schedule = new ArrayList<>();
-        double A = (P * i/12/ 100) / (1 - Math.pow(1 + i/12/ 100, -N)); // Annuité constante
+        double A = (P * i / 12 / 100) / (1 - Math.pow(1 + i / 12 / 100, -N)); // Annuité constante
 
         for (int k = 0; k < N; k++) {
             schedule.add(A);
@@ -226,7 +214,7 @@ public class LoanService  implements  ILoanService {
         double capitalAmortized = P / N;
 
         for (int k = 0; k < N; k++) {
-            double interest = (P - (k * capitalAmortized)) * i/12/ 100;
+            double interest = (P - (k * capitalAmortized)) * i / 12 / 100;
             double monthlyPayment = capitalAmortized + interest;
             schedule.add(monthlyPayment);
         }
@@ -234,36 +222,37 @@ public class LoanService  implements  ILoanService {
     }
 
 
-public double determineInterestRate(Long accountId, double creditScore) {
-    boolean isNewClient = !creditScoreService.hasExistingLoan(accountId);
-    double interestRate;
+    public double determineInterestRate(Long accountId, double creditScore) {
+        boolean isNewClient = !creditScoreService.hasExistingLoan(accountId);
+        double interestRate;
 
-    // Scraper la TMM depuis le lien
-    double tmm = getTMMFromBCT();
+        // Scraper la TMM depuis le lien
+        double tmm = getTMMFromBCT();
 
-    if (isNewClient) {
-        // Client qui n'a jamais pris de prêt
-        if (creditScore >= 90) {
-            interestRate = 6.0 + tmm;
-        } else if (creditScore >= 70) {
-            interestRate = 7.0 + tmm;
+        if (isNewClient) {
+            // Client qui n'a jamais pris de prêt
+            if (creditScore >= 90) {
+                interestRate = 6.0 + tmm;
+            } else if (creditScore >= 70) {
+                interestRate = 7.0 + tmm;
+            } else {
+                interestRate = 8.0 + tmm;
+            }
         } else {
-            interestRate = 8.0 + tmm;
+            // Client ayant déjà pris un prêt
+            if (creditScore >= 90) {
+                interestRate = 2.0 + tmm;
+            } else if (creditScore >= 70) {
+                interestRate = 3.0 + tmm;
+            } else {
+                interestRate = 5.0 + tmm;
+            }
         }
-    } else {
-        // Client ayant déjà pris un prêt
-        if (creditScore >= 90) {
-            interestRate = 2.0 + tmm;
-        } else if (creditScore >= 70) {
-            interestRate = 3.0 + tmm;
-        } else {
-            interestRate = 5.0 + tmm;
-        }
+
+        return interestRate;
     }
 
-    return interestRate;
-}
-//Scraping de la TMM dynamique
+    //Scraping de la TMM dynamique
     private double getTMMFromBCT() {
         try {
             // Connexion à la page et extraction du contenu
@@ -290,9 +279,8 @@ public double determineInterestRate(Long accountId, double creditScore) {
         return 7.99; // Retourner 7.99 en cas d'erreur ou si l'élément n'est pas trouvé
     }
 
-  private static final Logger log = LoggerFactory.getLogger(LoanService.class);
-
-    public Map<String, Object> getLoanRepaymentPlan(Long accountId, double requestedAmount, int requestedDuration) {
+    @Override
+    public Map<String, Object> getLoanRepaymentPlan(Long accountId, double requestedAmount, double requestedDuration) {
 
         double creditScore = creditScoreService.calculateCreditScore(accountId);
         log.info("✅ Credit Score récupéré : {}", creditScore);
@@ -372,6 +360,7 @@ public double determineInterestRate(Long accountId, double creditScore) {
         log.info("✅ Réponse générée avec succès pour accountId={}", accountId);
         return result;
     }
+
     private double toDouble(Object value) {
         if (value instanceof BigDecimal) {
             return ((BigDecimal) value).doubleValue();
@@ -381,116 +370,137 @@ public double determineInterestRate(Long accountId, double creditScore) {
             throw new IllegalArgumentException("Type non supporté : " + value.getClass().getName());
         }
     }
+    @Override
+    public Loan createLoan(Long accountId, double requestedAmount, int requestedDuration, String repaymentType,Long guarantorId) {
+        log.info("➡️ Début createLoan pour accountId={} montant={} durée={}", accountId, requestedAmount, requestedDuration);
 
-public Loan createLoan(Long accountId, double requestedAmount, int requestedDuration, String repaymentType) {
-    log.info("➡️ Début createLoan pour accountId={} montant={} durée={}", accountId, requestedAmount, requestedDuration);
+        // Appel de la fonction pour obtenir le plan de remboursement
+        Map<String, Object> repaymentPlan = getLoanRepaymentPlan(accountId, requestedAmount, requestedDuration);
 
-    // Appel de la fonction pour obtenir le plan de remboursement
-    Map<String, Object> repaymentPlan = getLoanRepaymentPlan(accountId, requestedAmount, requestedDuration);
+        // Affichage du contenu du plan de remboursement et des clés
+        log.info("📊 Contenu de repaymentPlan: {}", repaymentPlan);
+        log.info("🔑 Clés disponibles dans repaymentPlan: {}", repaymentPlan.keySet());
 
-    // Affichage du contenu du plan de remboursement et des clés
-    log.info("📊 Contenu de repaymentPlan: {}", repaymentPlan);
-    log.info("🔑 Clés disponibles dans repaymentPlan: {}", repaymentPlan.keySet());
+        // Extraire les informations nécessaires depuis le plan de remboursement
+        Object grantedAmountObj = repaymentPlan.get("🟢 Montant accordé");
+        Object interestRateObj = repaymentPlan.get("Taux d'intérêt");
 
-    // Extraire les informations nécessaires depuis le plan de remboursement
-    Object grantedAmountObj = repaymentPlan.get("🟢 Montant accordé");
-    Object interestRateObj = repaymentPlan.get("Taux d'intérêt");
-
-    // Logs pour observer les objets et leurs types
-    log.info("🔍 grantedAmountObj: {} | Type: {}", grantedAmountObj, grantedAmountObj.getClass().getName());
-    log.info("🔍 interestRateObj: {} | Type: {}", interestRateObj, interestRateObj.getClass().getName());
+        // Logs pour observer les objets et leurs types
+        log.info("🔍 grantedAmountObj: {} | Type: {}", grantedAmountObj, grantedAmountObj.getClass().getName());
+        log.info("🔍 interestRateObj: {} | Type: {}", interestRateObj, interestRateObj.getClass().getName());
 
 
-    double grantedAmount = toDouble(repaymentPlan.get("🟢 Montant accordé"));
-    double interestRate = toDouble(repaymentPlan.get("Taux d'intérêt"));
+        double grantedAmount = toDouble(repaymentPlan.get("🟢 Montant accordé"));
+        double interestRate = toDouble(repaymentPlan.get("Taux d'intérêt"));
 
-    // Traitement du type de remboursement
-    List<Map<String, Object>> selectedRepaymentSchedule = new ArrayList<>();
-    String repaymentKey = repaymentType.equalsIgnoreCase("annuity") ? "Plan Annuités Constantes" :
-            repaymentType.equalsIgnoreCase("amortization") ? "Plan Amortissement Constant" : null;
+        // Traitement du type de remboursement
+        List<Map<String, Object>> selectedRepaymentSchedule = new ArrayList<>();
+        String repaymentKey = repaymentType.equalsIgnoreCase("annuity") ? "Plan Annuités Constantes" :
+                repaymentType.equalsIgnoreCase("amortization") ? "Plan Amortissement Constant" : null;
 
-    if (repaymentKey != null && repaymentPlan.containsKey(repaymentKey)) {
-        selectedRepaymentSchedule = (List<Map<String, Object>>) repaymentPlan.get(repaymentKey);
-        log.info("✅ Plan '{}' sélectionné.", repaymentKey);
-    } else {
-        log.error("❌ Type de remboursement invalide : {}", repaymentType);
-        throw new IllegalArgumentException("❌ Type de remboursement invalide. Choisissez entre 'annuity' ou 'amortization'.");
-    }
+        if (repaymentKey != null && repaymentPlan.containsKey(repaymentKey)) {
+            selectedRepaymentSchedule = (List<Map<String, Object>>) repaymentPlan.get(repaymentKey);
+            log.info("✅ Plan '{}' sélectionné.", repaymentKey);
+        } else {
+            log.error("❌ Type de remboursement invalide : {}", repaymentType);
+            throw new IllegalArgumentException("❌ Type de remboursement invalide. Choisissez entre 'annuity' ou 'amortization'.");
+        }
+// 🔍 Récupérer le garant
+        Guarantor guarantor = guarantorRepository.findGuarantorById(guarantorId)
+                .orElseThrow(() -> new RuntimeException("❌ Garant non trouvé avec l'ID: " + guarantorId));
 
-    // Création du prêt
-    Loan loan = new Loan();
-    loan.setAmount(grantedAmount);
-    loan.setDuration(requestedDuration);
-    loan.setInterestRate(interestRate);
-    loan.setStatus(Loan_Status.IN_PROGRESS); // Statut initial du prêt
-    loan.setRequest_date(new Date());
-    // Enregistrement du prêt dans la base de données
-    loanRepository.save(loan);
-    // Générer le document PDF après que l'ID soit généré
-    try {
-        // Générer le document PDF en utilisant l'ID du prêt
-        loan.setLoanPdf(generateLoanDocument(loan.getIdLoan()));
-    } catch (IOException e) {
-        e.printStackTrace(); // Affiche l'erreur dans la console
-        throw new RuntimeException("Erreur lors de la génération du document PDF", e);
-    }
+
+// ✅ Vérifier si le garant est approuvé
+        if (!guarantor.getApprouved()) {
+            log.error("❌ Le garant {} n'est pas approuvé.", guarantor.getId());
+            throw new RuntimeException("Le garant n'est pas approuvé.");
+        }
+
+
+        BigDecimal monthlyInstallment = (BigDecimal) selectedRepaymentSchedule.get(0).get("Mensualité"); // Récupérer la 1ère mensualité
+
+        if (Double.compare(guarantor.getMonthlyIncome(), monthlyInstallment.doubleValue()) <= 0) {
+            log.error("❌ Le garant {} n'a pas un revenu suffisant pour couvrir la mensualité de {}.", guarantor.getId(), monthlyInstallment);
+            throw new RuntimeException("Le garant ne peut pas couvrir la mensualité du prêt.");
+        }
+
+        log.info("✅ Garant {} validé avec un revenu mensuel de {}", guarantor.getId(), guarantor.getMonthlyIncome());
+
+        // Création du prêt
+        Loan loan = new Loan();
+        loan.setAmount(grantedAmount);
+        loan.setDuration(requestedDuration);
+        loan.setInterestRate(interestRate);
+        loan.setStatus(Loan_Status.IN_PROGRESS); // Statut initial du prêt
+        loan.setRequest_date(new Date());
+        loan.setGuarantor(guarantor);
+        // Enregistrement du prêt dans la base de données
+        loanRepository.save(loan);
+        // Générer le document PDF après que l'ID soit généré
+        try {
+            // Générer le document PDF en utilisant l'ID du prêt
+            loan.setLoanPdf(generateLoanDocument(loan.getIdLoan()));
+        } catch (IOException e) {
+            e.printStackTrace(); // Affiche l'erreur dans la console
+            throw new RuntimeException("Erreur lors de la génération du document PDF", e);
+        }
 
 // Mettre à jour le prêt dans la base de données avec le PDF généré
-    loanRepository.save(loan);
+        loanRepository.save(loan);
 
 
+        log.info("✅ Prêt créé avec succès pour accountId={}", accountId);
 
-    log.info("✅ Prêt créé avec succès pour accountId={}", accountId);
+        LocalDate loanStartDate = LocalDate.now(); // Ou utilisez loan.getRequest_date() si la date est déjà définie
+        LocalDate nextPaymentDate = loanStartDate.plusMonths(1); // Premier paiement le mois suivant
 
-    LocalDate loanStartDate = LocalDate.now(); // Ou utilisez loan.getRequest_date() si la date est déjà définie
-    LocalDate nextPaymentDate = loanStartDate.plusMonths(1); // Premier paiement le mois suivant
+        // Traitement des remboursements
+        List<Repayment> repayments = new ArrayList<>();
+        double remainingPrincipal = grantedAmount;
 
-    // Traitement des remboursements
-    List<Repayment> repayments = new ArrayList<>();
-    double remainingPrincipal = grantedAmount;
+        // Parcours du plan d'annuité constante pour créer les objets Repayment
+        for (Map<String, Object> annuity : selectedRepaymentSchedule) {
+            Repayment repayment = new Repayment();
 
-    // Parcours du plan d'annuité constante pour créer les objets Repayment
-    for (Map<String, Object> annuity : selectedRepaymentSchedule) {
-        Repayment repayment = new Repayment();
+            // Convertir LocalDate en Date avant de l'affecter à expectedPaymentDate
+            Date expectedDate = Date.from(nextPaymentDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
+            repayment.setExpectedPaymentDate(expectedDate);
+            repayment.setMonthly_amount(((BigDecimal) annuity.get("Mensualité")).setScale(3, RoundingMode.HALF_UP).doubleValue());
+            repayment.setInterest(((BigDecimal) annuity.get("Intérêts")).setScale(3, RoundingMode.HALF_UP).doubleValue());
+            remainingPrincipal -= ((BigDecimal) annuity.get("Capital Remboursé")).setScale(3, RoundingMode.HALF_UP).doubleValue();
+            repayment.setRemainingPrincipal(new BigDecimal(remainingPrincipal).setScale(3, RoundingMode.HALF_UP).doubleValue());
+            repayment.setRepaidPrincipal(((BigDecimal) annuity.get("Capital Remboursé")).setScale(3, RoundingMode.HALF_UP).doubleValue());
+            repayment.setStatus(Repayment_Status.IN_PROGRESS); // Statut initial
+            repayment.setLoan(loan); // Associer le remboursement au prêt
+            // Calcul du capital restant après ce remboursement
 
-        // Convertir LocalDate en Date avant de l'affecter à expectedPaymentDate
-        Date expectedDate = Date.from(nextPaymentDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
-        repayment.setExpectedPaymentDate(expectedDate);
-        repayment.setMonthly_amount(((BigDecimal) annuity.get("Mensualité")).setScale(3, RoundingMode.HALF_UP).doubleValue());
-        repayment.setInterest(((BigDecimal)  annuity.get("Intérêts")).setScale(3, RoundingMode.HALF_UP).doubleValue());
-        remainingPrincipal -= ((BigDecimal) annuity.get("Capital Remboursé")).setScale(3, RoundingMode.HALF_UP).doubleValue();
-        repayment.setRemainingPrincipal(new BigDecimal(remainingPrincipal).setScale(3, RoundingMode.HALF_UP).doubleValue());
-        repayment.setRepaidPrincipal(((BigDecimal)  annuity.get("Capital Remboursé")).setScale(3, RoundingMode.HALF_UP).doubleValue());
-        repayment.setStatus(Repayment_Status.IN_PROGRESS); // Statut initial
-        repayment.setLoan(loan); // Associer le remboursement au prêt
-        // Calcul du capital restant après ce remboursement
+            repayments.add(repayment);
 
-        repayments.add(repayment);
+            // Incrémenter la date de paiement pour le prochain remboursement
+            nextPaymentDate = nextPaymentDate.plusMonths(1);
+        }
 
-        // Incrémenter la date de paiement pour le prochain remboursement
-        nextPaymentDate = nextPaymentDate.plusMonths(1);
+        // Sauvegarder les remboursements associés au prêt
+        repaymentRepository.saveAll(repayments);
+        log.info("✅ Remboursements enregistrés avec succès pour le prêt {}", loan.getIdLoan());
+
+        Loan loan1 = loanRepository.findById(loan.getIdLoan()).orElse(null);
+
+        // Enregistrer la transaction du prêt
+        transactionService.depositLoan(accountId, grantedAmount, "192.168.1.1", loan1);
+        log.info("✅ Transaction pour le prêt enregistrée.");
+        // Appel du service d'envoi d'email après création du prêt
+        try {
+            sendLoanEmail("rihabc184@gmail.com", loan.getIdLoan());
+            System.out.println("tried sending");
+        } catch (MessagingException | IOException e) {
+            // Gérer l'exception ici, comme logger l'erreur
+            e.printStackTrace();  // Exemple : afficher l'exception dans la console
+        }
+
+        return loan;
     }
 
-    // Sauvegarder les remboursements associés au prêt
-    repaymentRepository.saveAll(repayments);
-    log.info("✅ Remboursements enregistrés avec succès pour le prêt {}", loan.getIdLoan());
-
-    Loan loan1 = loanRepository.findById(loan.getIdLoan()).orElse(null);
-
-    // Enregistrer la transaction du prêt
-    transactionService.depositLoan(accountId, grantedAmount, "192.168.1.1", loan1);
-    log.info("✅ Transaction pour le prêt enregistrée.");
-    // Appel du service d'envoi d'email après création du prêt
-    try {
-        sendLoanEmail("rihabc184@gmail.com", loan.getIdLoan());
-        System.out.println("tried sending");
-    } catch (MessagingException | IOException e) {
-        // Gérer l'exception ici, comme logger l'erreur
-        e.printStackTrace();  // Exemple : afficher l'exception dans la console
-    }
-
-    return loan;
-}
     public byte[] generateLoanDocument(Long loanId) throws java.io.IOException {
         // Récupérer le prêt
         tn.esprit.rechargeplus.entities.Loan loan = loanRepository.findById(loanId)
@@ -519,7 +529,7 @@ public Loan createLoan(Long accountId, double requestedAmount, int requestedDura
         logoLeft.setFixedPosition(50, pdfDoc.getDefaultPageSize().getTop() - 120); // Positionne le logo à 50px du bord gauche et à 100px du haut de la page
         logoLeft.scaleToFit(120, 150); // Redimensionne l'image pour qu'elle ait une largeur et une hauteur de 100px
 
-       // Ajouter le logo à gauche
+        // Ajouter le logo à gauche
         document.add(logoLeft);
         // Ajouter un Div pour créer un espace entre le logo et le contenu suivant
         com.itextpdf.layout.element.Div spacer = new com.itextpdf.layout.element.Div();
@@ -581,7 +591,7 @@ public Loan createLoan(Long accountId, double requestedAmount, int requestedDura
         for (tn.esprit.rechargeplus.entities.Repayment repayment : repayments) {
 
             String formattedDate = dateFormat.format(repayment.getExpectedPaymentDate());
-           // repaymentTable.addCell(repayment.getExpectedPaymentDate().toString());
+            // repaymentTable.addCell(repayment.getExpectedPaymentDate().toString());
             repaymentTable.addCell(formattedDate);
             repaymentTable.addCell(String.valueOf(repayment.getMonthly_amount()));
             repaymentTable.addCell(String.valueOf(repayment.getInterest()));
@@ -670,16 +680,14 @@ public Loan createLoan(Long accountId, double requestedAmount, int requestedDura
 
         // Uncomment the following lines to attach the generated PDF file to the email
 
-    ByteArrayDataSource dataSource = new ByteArrayDataSource(loanPdfBytes, "application/pdf");
-    message.setDataHandler(new DataHandler(dataSource));
-    message.setFileName("Contrat_Pret_" + loanId + ".pdf");
+        ByteArrayDataSource dataSource = new ByteArrayDataSource(loanPdfBytes, "application/pdf");
+        message.setDataHandler(new DataHandler(dataSource));
+        message.setFileName("Contrat_Pret_" + loanId + ".pdf");
 
 
         // Send the email
         Transport.send(message);
     }
-
-
 
 
 }
