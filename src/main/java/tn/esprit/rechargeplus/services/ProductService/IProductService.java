@@ -1,4 +1,4 @@
-package tn.esprit.rechargeplus.services;
+package tn.esprit.rechargeplus.services.ProductService;
 import tn.esprit.rechargeplus.entities.Basket_items;
 import tn.esprit.rechargeplus.entities.Product;
 

@@ -1,10 +1,10 @@
-package tn.esprit.rechargeplus.controllers;
+package tn.esprit.rechargeplus.controllers.ProductController;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import tn.esprit.rechargeplus.entities.Basket_items;
-import tn.esprit.rechargeplus.services.IBasket_itemsService;
-import tn.esprit.rechargeplus.services.Basket_itemsServiceImpl;
+import tn.esprit.rechargeplus.services.ProductService.IBasket_itemsService;
+
 import java.util.List;
 
 @RestController

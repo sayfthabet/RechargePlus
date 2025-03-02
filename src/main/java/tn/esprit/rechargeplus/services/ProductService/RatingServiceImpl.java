@@ -1,4 +1,4 @@
-package tn.esprit.rechargeplus.services;
+package tn.esprit.rechargeplus.services.ProductService;
 
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;

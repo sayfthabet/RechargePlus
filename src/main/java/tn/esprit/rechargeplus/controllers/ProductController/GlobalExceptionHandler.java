@@ -1,4 +1,4 @@
-package tn.esprit.rechargeplus.controllers;
+package tn.esprit.rechargeplus.controllers.ProductController;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

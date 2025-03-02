@@ -1,4 +1,4 @@
-package tn.esprit.rechargeplus.services;
+package tn.esprit.rechargeplus.services.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;

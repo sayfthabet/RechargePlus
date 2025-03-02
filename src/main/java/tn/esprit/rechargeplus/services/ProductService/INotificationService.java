@@ -1,4 +1,4 @@
-package tn.esprit.rechargeplus.services;
+package tn.esprit.rechargeplus.services.ProductService;
 
 import org.springframework.mail.javamail.JavaMailSender;
 import tn.esprit.rechargeplus.entities.Product;

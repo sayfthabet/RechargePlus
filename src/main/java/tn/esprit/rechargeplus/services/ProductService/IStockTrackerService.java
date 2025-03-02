@@ -1,4 +1,4 @@
-package tn.esprit.rechargeplus.services;
+package tn.esprit.rechargeplus.services.ProductService;
 
 
 public interface IStockTrackerService {

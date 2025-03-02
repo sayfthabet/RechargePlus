@@ -1,4 +1,4 @@
-package tn.esprit.rechargeplus.services;
+package tn.esprit.rechargeplus.services.ProductService;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
@@ -13,6 +13,10 @@ public class NotificationService implements INotificationService {
     }
 
     public void notifyUser(Product product) {
+        if (product == null || product.getUser() == null) {
+            throw new IllegalArgumentException("Product or User information is missing");
+        }
+
         String userEmail = product.getUser().getEmail();
         String subject = "⚠️ Low Stock Alert: " + product.getName();
         String message = "Hello " + product.getUser().getName() + ",\n\n" +

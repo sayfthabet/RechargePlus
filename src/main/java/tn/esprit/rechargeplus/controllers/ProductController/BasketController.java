@@ -1,25 +1,38 @@
-package tn.esprit.rechargeplus.controllers;
+package tn.esprit.rechargeplus.controllers.ProductController;
 import lombok.AllArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import tn.esprit.rechargeplus.entities.Basket;
 import tn.esprit.rechargeplus.entities.Basket_items;
-import tn.esprit.rechargeplus.services.IBasketService;
-import tn.esprit.rechargeplus.services.BasketServiceImpl;
+import tn.esprit.rechargeplus.services.ProductService.IBasketService;
+import tn.esprit.rechargeplus.services.ProductService.IPdfService;
 import java.util.List;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 
 @RestController
 @AllArgsConstructor
 @RequestMapping("/basket")
 public class BasketController {
+    private static final Logger log = LoggerFactory.getLogger(BasketController.class);
+    @Autowired
+    IPdfService pdfService;
+
     @Autowired
     IBasketService basketService;
+
     @GetMapping("/getBaskets")
-    public List<Basket> AllBaskets() {return basketService.getAllBaskets();}
+    public List<Basket> AllBaskets() {
+        return basketService.getAllBaskets();
+    }
+
     @PostMapping("/addBasket")
     public Basket addBasket(@RequestBody Basket basket) {
-    return basketService.addBasket(basket);
+        return basketService.addBasket(basket);
     }
 
     @DeleteMapping("/deleteBasket/{id}")
@@ -45,7 +58,7 @@ public class BasketController {
     }
 
 
-     @PatchMapping("/{basketId}/remove/{productId}")
+    @PatchMapping("/{basketId}/remove/{productId}")
     public ResponseEntity<Basket> removeProduct(@PathVariable Long basketId,
                                                 @PathVariable Long productId) {
         return ResponseEntity.ok(basketService.removeProductFromBasket(basketId, productId));
@@ -62,4 +75,22 @@ public class BasketController {
         return ResponseEntity.ok("Panier vidé avec succès");
     }
     */
-}
+
+    @GetMapping("/{id}/download-pdf")
+    public ResponseEntity<byte[]> downloadBasketPdf(@PathVariable Long id) {
+            log.info("Received request to generate PDF for basket ID: {}", id);
+            try {
+                Basket basket = new Basket(); // Récupérer le panier selon l'ID (à modifier)
+                byte[] pdfBytes = pdfService.generateBasketPdf(basket);
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_PDF);
+                headers.setContentDispositionFormData("attachment", "basket.pdf");
+
+                return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
+            } catch (Exception e) {
+                log.error("Error generating PDF", e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+            }
+        }
+    }

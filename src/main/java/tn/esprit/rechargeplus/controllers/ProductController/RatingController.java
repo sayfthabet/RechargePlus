@@ -1,10 +1,10 @@
-package tn.esprit.rechargeplus.controllers;
+package tn.esprit.rechargeplus.controllers.ProductController;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import tn.esprit.rechargeplus.entities.Rating;
-import tn.esprit.rechargeplus.services.IRatingService;
-import tn.esprit.rechargeplus.services.RatingServiceImpl;
+import tn.esprit.rechargeplus.services.ProductService.IRatingService;
+
 import java.util.List;
 
 @RestController

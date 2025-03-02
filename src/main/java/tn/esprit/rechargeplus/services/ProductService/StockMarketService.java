@@ -1,4 +1,4 @@
-package tn.esprit.rechargeplus.services;
+package tn.esprit.rechargeplus.services.ProductService;
 
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
@@ -50,7 +50,7 @@ public class StockMarketService {
                     By.cssSelector(".ag-cell-last-left-pinned.ag-cell-value")
             ).stream()
                     .filter(element -> !element.getText().trim().isEmpty())
-                    .collect(Collectors.toList());;
+                    .collect(Collectors.toList());
 
             List<WebElement> stockPriceElements = driver.findElements(
                     By.cssSelector("[colid='limit.ask']")
