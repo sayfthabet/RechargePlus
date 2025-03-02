@@ -32,7 +32,7 @@ public class TransactionService implements iTransactionService {
 
     @Override
     public Transaction getTransactionById(Long id) {
-        return transactionRepository.findById(id)
+        return transactionRepository.findById( id) //"ACC-" +
                 .orElseThrow(() -> new TransactionNotFoundException("Transaction not found"));
     }
 
@@ -65,6 +65,19 @@ public class TransactionService implements iTransactionService {
                 cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR);
     }
 
+
+
+    private double determineFeePercentage() {
+        Calendar cal = Calendar.getInstance();
+        int hour = cal.get(Calendar.HOUR_OF_DAY);
+        // Peak hours: 9 AM to 5 PM -> 1.5% fee, otherwise 0.5%
+        if (hour >= 9 && hour < 17) {
+            return 0.015;
+        } else {
+            return 0.005;
+        }}
+
+
     @Override
     @Transactional
     public Transaction transferBetweenAccounts(Long sourceAccountId, Long targetAccountId, double amount, String ipAddress) {
@@ -79,7 +92,7 @@ public class TransactionService implements iTransactionService {
         fraudService.checkForFraud(amount, ipAddress);
 
         // Calculate fee (1% fee)
-        double fee = amount * 0.01;
+        double fee = amount * determineFeePercentage();
         double totalAmount = amount + fee;
 
         // Check balance
@@ -172,7 +185,7 @@ public class TransactionService implements iTransactionService {
         transaction.setSource("SYSTEM");
         transaction.setDestination("ACC-" + accountId);
         transaction.setAmount(amount);
-        transaction.setFee(0);
+        transaction.setFee(determineFeePercentage());
         transaction.setStatus(Transaction_Status.COMPLETED);
         transaction.setIpAddress(ipAddress);
         logger.info("Deposit of {} to account {}", amount, accountId);
@@ -210,7 +223,7 @@ public class TransactionService implements iTransactionService {
         transaction.setSource("ACC-" + accountId);
         transaction.setDestination("SYSTEM");
         transaction.setAmount(amount);
-        transaction.setFee(0);
+        transaction.setFee(determineFeePercentage());
         transaction.setStatus(Transaction_Status.COMPLETED);
         transaction.setIpAddress(ipAddress);
         logger.info("Withdrawal of {} from account {}", amount, accountId);
