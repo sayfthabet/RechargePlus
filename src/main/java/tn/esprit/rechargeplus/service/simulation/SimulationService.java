@@ -24,8 +24,8 @@ public class SimulationService {
     private long lastFetchTime = 0;
     private final long CACHE_DURATION_MS = 60 * 1000; // Cache for 1 minute
 
-    // Alpha Vantage API key (replace with your actual API key)
-    private final String apiKey = "YOUR_API_KEY";
+        // Alpha Vantage API key (replace with your actual API key)
+    private final String apiKey = "N06MS9AIP5424YD3";
 
     public SimulationService(String stockSymbol, double referencePrice) {
         this.stockSymbol = stockSymbol;
@@ -59,125 +59,72 @@ public class SimulationService {
         orderBook.display();
     }
 
-    /**
-     * Updates profit or loss based on the real-time market price fetched from Alpha Vantage.
-     */
-    public void updateProfitLoss() {
-        try {
-            JSONObject stockData = getCachedStockData(stockSymbol, 3);
-            if (stockData != null) {
-                // Alpha Vantage returns JSON with structure: {"Global Quote": {"05. price": "..." ... }}
-                JSONObject globalQuote = stockData.getJSONObject("Global Quote");
-                String priceStr = globalQuote.getString("05. price");
-                double currentMarketPrice = Double.parseDouble(priceStr);
-                double delta = currentMarketPrice - referencePrice;
-                profitLoss = delta;
-                logger.info("Real Market Price for {}: ${}, Reference Price: ${}, Profit/Loss: ${}",
-                        stockSymbol, currentMarketPrice, referencePrice, profitLoss);
-            }
-        } catch (Exception e) {
-            logger.error("Failed to fetch market data for " + stockSymbol, e);
-        }
-    }
-
     public double getProfitLoss() {
         return profitLoss;
     }
 
-    /**
-     * Fetches and caches stock data using Alpha Vantage with retry logic.
-     *
-     * @param symbol     The stock symbol.
-     * @param maxRetries Maximum number of retries.
-     * @return JSONObject containing the stock data.
-     * @throws IOException          If an I/O error occurs.
-     * @throws InterruptedException If the thread is interrupted.
-     */
-    private JSONObject getCachedStockData(String symbol, int maxRetries) throws IOException, InterruptedException {
-        long now = System.currentTimeMillis();
-        if (cachedStockData != null && (now - lastFetchTime) < CACHE_DURATION_MS) {
-            return cachedStockData;
-        }
-        cachedStockData = getStockDataWithRetry(symbol, maxRetries);
-        lastFetchTime = now;
-        return cachedStockData;
+    public double getReferencePrice() {
+        return referencePrice;
     }
 
-    private JSONObject getStockDataWithRetry(String symbol, int maxRetries) throws IOException, InterruptedException {
-        int retryCount = 0;
-        long waitTime = 5000; // Start with 5 seconds
-        HttpClient client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
-        String url = "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol="
-                + symbol + "&apikey=" + apiKey;
-        while (retryCount < maxRetries) {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("User-Agent", "Mozilla/5.0")
-                    .GET()
-                    .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200) {
-                JSONObject json = new JSONObject(response.body());
-                if (json.has("Global Quote") && !json.getJSONObject("Global Quote").isEmpty()) {
-                    return json;
-                }
-            } else if (response.statusCode() == 429) {
-                logger.warn("Received 429 error. Retrying in {} ms...", waitTime);
-                Thread.sleep(waitTime);
-                waitTime *= 2; // Exponential backoff
-            } else {
-                logger.error("Received error status: " + response.statusCode());
-                break;
-            }
-            retryCount++;
-        }
-        throw new IOException("Failed to fetch stock data after " + maxRetries + " attempts.");
+    public void setReferencePrice(double referencePrice) {
+        this.referencePrice = referencePrice;
+    }
+
+    // Method to update P&L with mock price
+    public void updateProfitLossMock(double currentPrice) {
+        this.profitLoss = currentPrice - this.referencePrice;
+        logger.info("Simulated Market Price for {}: ${}, Reference Price: ${}, Profit/Loss: ${}",
+                stockSymbol, currentPrice, referencePrice, profitLoss);
+    }
+
+    // Generate a mock price based on previous price
+    private double generateMockPrice(double previousPrice) {
+        // Random change between -0.5% to +0.5%
+        double changePercent = (Math.random() - 0.5) * 0.01;
+        return previousPrice * (1 + changePercent);
     }
 
     /**
-     * Main method demonstrating the simulation using real-time Alpha Vantage data.
+     * Main method demonstrating continuous simulation with mock data.
      */
     public static void main(String[] args) throws InterruptedException {
         String stockSymbol = "AAPL";
-        double initialPrice = 0.0;
-        SimulationService simulation = new SimulationService(stockSymbol, 0);
-        try {
-            JSONObject stockData = simulation.getStockDataWithRetry(stockSymbol, 3);
-            JSONObject globalQuote = stockData.getJSONObject("Global Quote");
-            initialPrice = Double.parseDouble(globalQuote.getString("05. price"));
-            logger.info("Initial price for {}: ${}", stockSymbol, initialPrice);
-        } catch (Exception e) {
-            logger.error("Failed to fetch initial market data for " + stockSymbol, e);
-            initialPrice = 100.0; // Fallback value
+        double initialPrice = 100.0; // Default initial price
+
+        // Initialize simulation with initial price
+        SimulationService simulation = new SimulationService(stockSymbol, initialPrice);
+        logger.info("Initial price for {}: ${}", stockSymbol, initialPrice);
+
+        // Continuous simulation loop
+        while (true) {
+            try {
+                // Generate new mock price
+                double currentPrice = simulation.generateMockPrice(simulation.getReferencePrice());
+                simulation.setReferencePrice(currentPrice);
+
+                // Place orders around current price
+                simulation.simulateBuy(currentPrice * 1.01, 10);
+                simulation.simulateBuy(currentPrice * 1.02, 5);
+                simulation.simulateSell(currentPrice * 0.99, 8);
+                simulation.simulateSell(currentPrice * 0.98, 12);
+
+                // Display order book and match orders
+                simulation.displayOrderBook();
+                simulation.simulateMatching();
+                simulation.displayOrderBook();
+
+                // Update and display P&L
+                simulation.updateProfitLossMock(currentPrice);
+
+                // Wait for 1 second before next iteration
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                logger.error("Simulation loop interrupted", e);
+                break;
+            } catch (Exception e) {
+                logger.error("Error in simulation loop", e);
+            }
         }
-        // Reinitialize simulation with proper initial price
-        simulation = new SimulationService(stockSymbol, initialPrice);
-
-        // Simulate order placements based on the real stock price
-        simulation.simulateBuy(initialPrice * 1.01, 10);
-        simulation.simulateBuy(initialPrice * 1.02, 5);
-        simulation.simulateSell(initialPrice * 0.99, 8);
-        simulation.simulateSell(initialPrice * 0.98, 12);
-
-        // Display the order book before matching
-        simulation.displayOrderBook();
-
-        // Match orders
-        simulation.simulateMatching();
-        simulation.displayOrderBook();
-
-        // Update profit/loss based on current market price
-        simulation.updateProfitLoss();
-
-        // Pause and simulate additional orders
-        Thread.sleep(2000);
-        simulation.simulateBuy(initialPrice * 1.03, 15);
-        simulation.simulateSell(initialPrice * 0.97, 10);
-        simulation.displayOrderBook();
-        simulation.simulateMatching();
-        simulation.displayOrderBook();
-        simulation.updateProfitLoss();
     }
 }
