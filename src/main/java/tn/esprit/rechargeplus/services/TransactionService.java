@@ -10,6 +10,7 @@ import tn.esprit.rechargeplus.entities.Account;
 import tn.esprit.rechargeplus.entities.Loan;
 import tn.esprit.rechargeplus.entities.Transaction;
 import tn.esprit.rechargeplus.entities.Transaction_Status;
+import tn.esprit.rechargeplus.repositories.AccountRepository;
 import tn.esprit.rechargeplus.repositories.TransactionRepository;
 import tn.esprit.rechargeplus.services.exceptions.*;
 
@@ -24,6 +25,8 @@ public class TransactionService implements iTransactionService {
     private static final Logger logger = LoggerFactory.getLogger(TransactionService.class);
     @Autowired
     TransactionRepository transactionRepository;
+    @Autowired
+    AccountRepository accountRepository;
     @Autowired
      AccountService accountService;
     @Autowired
@@ -246,6 +249,7 @@ public class TransactionService implements iTransactionService {
         Transaction transaction = new Transaction();
         transaction.setSource("SYSTEM");
         transaction.setDestination("ACC-" + accountId);
+        transaction.setAccount(accountService.retrieveAccountById(accountId));
         transaction.setAmount(amount);
         transaction.setFee(0);
         transaction.setStatus(Transaction_Status.COMPLETED);

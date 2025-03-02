@@ -7,6 +7,7 @@ import tn.esprit.rechargeplus.services.ILoanService;
 import tn.esprit.rechargeplus.services.IRepaymentService;
 import tn.esprit.rechargeplus.entities.Repayment;
 
+import java.io.IOException;
 import java.util.List;
 
 @RestController
@@ -39,4 +40,16 @@ public class RepaymentController {
         return repaymentservice.retrieveRepayment(id);
     }
 
+
+    @GetMapping("/send-sms/{amount}")
+    public String sendSmsTest(@PathVariable double amount) {
+        try {
+            // Appel de la méthode sendSms pour tester l'envoi
+            repaymentservice.sendSms(amount);
+            return "SMS envoyé avec succès.";
+        } catch (IOException e) {
+            e.printStackTrace();
+            return "Erreur lors de l'envoi du SMS: " + e.getMessage();
+        }
+    }
 }

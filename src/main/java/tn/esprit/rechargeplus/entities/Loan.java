@@ -28,6 +28,8 @@ public class Loan {
     private Date request_date;
     private double total_repayment_amount;
     private double remaining_repayment;
+    @Lob // Annonce que cet attribut contient de grandes données (comme un fichier)
+    private byte[] loanPdf;
     @OneToMany (mappedBy = "loan")
     @JsonManagedReference
     private List<Transaction> transactions;
@@ -120,5 +122,13 @@ public class Loan {
 
     public void setRepayments(List<Repayment> repayments) {
         this.repayments = repayments;
+    }
+
+    public byte[] getLoanPdf() {
+        return loanPdf;
+    }
+
+    public void setLoanPdf(byte[] loanPdf) {
+        this.loanPdf = loanPdf;
     }
 }

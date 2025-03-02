@@ -17,6 +17,7 @@ public interface ILoanService {
    int calculateAnnuityDuration(double P, double Rm, double i) ;
    int calculateAmortizationDuration(double P, double Rm, double i) ;
    Loan createLoan(Long accountId, double requestedAmount, int requestedDuration, String repaymentType) ;
+   byte[] generateLoanDocument(Long loanId) throws java.io.IOException ;
 
 
     }

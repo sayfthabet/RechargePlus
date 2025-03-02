@@ -184,9 +184,9 @@ public class CreditScoreService implements ICreditScoreService {
         double standardDeviation = calculateStandardDeviation(amounts);
         if (hasExistingLoan(accountId)) {
             // Si l'écart-type est faible, score élevé pour les clients ayant deja pris un pret
-            if (standardDeviation <= 100) {
+            if (standardDeviation <= 2000) {
                 return 20; // Ancien Client : 20 pts max
-            } else if (standardDeviation <= 300) {
+            } else if (standardDeviation <= 3000) {
                 return 10; // Ancien Client : 10 pts max
             } else {
                 return 0; // Ancien Client : 0 pts si très irrégulier

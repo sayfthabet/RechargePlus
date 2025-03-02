@@ -1,8 +1,14 @@
 package tn.esprit.rechargeplus.services;
 
+import com.itextpdf.io.image.ImageDataFactory;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import jakarta.mail.*;
+import jakarta.mail.internet.*;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import tn.esprit.rechargeplus.entities.Loan_Status;
 import tn.esprit.rechargeplus.entities.Transaction_Status;
@@ -12,15 +18,47 @@ import tn.esprit.rechargeplus.entities.Repayment;
 import tn.esprit.rechargeplus.repositories.ILoanRepository;
 import tn.esprit.rechargeplus.entities.Loan;
 import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import jakarta.mail.*;
+import jakarta.mail.internet.*;
+//import javax.activation.DataHandler;
+import jakarta.activation.DataHandler;
+import jakarta.mail.util.ByteArrayDataSource;
+import java.io.IOException;
+import java.util.Properties;
 
+import org.jsoup.nodes.Document ;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.List;
+
+
+import com.itextpdf.layout.element.*;
+import com.itextpdf.kernel.pdf.PdfWriter;
+
+import com.itextpdf.layout.element.Paragraph;
+import com.itextpdf.layout.element.Image;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.stereotype.Service;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.activation.DataSource;
+//import javax.activation.*;
+
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,12 +68,18 @@ import tn.esprit.rechargeplus.repositories.IRepaymentRepository;
 @Service
 @RequiredArgsConstructor
 public class LoanService  implements  ILoanService {
+
+
+
+    @Autowired
+    private JavaMailSender mailSender;
     @Autowired
      ILoanRepository loanRepository;
     @Autowired
     IRepaymentRepository repaymentRepository;
     @Autowired
     CreditScoreService creditScoreService;
+
     @Autowired
     TransactionService transactionService;
     @Override
@@ -223,7 +267,7 @@ public double determineInterestRate(Long accountId, double creditScore) {
     private double getTMMFromBCT() {
         try {
             // Connexion à la page et extraction du contenu
-            Document doc = Jsoup.connect("https://www.bct.gov.tn/bct/siteprod/stat_page.jsp?id=129").get();
+            org.jsoup.nodes.Document doc = Jsoup.connect("https://www.bct.gov.tn/bct/siteprod/stat_page.jsp?id=129").get();
 
             // Utilisation du sélecteur CSS spécifique pour récupérer la TMM
             Element tmmElement = doc.select("#PSR_print2 > table > tbody > tr:nth-child(10) > td:nth-child(2) > p").first();
@@ -249,7 +293,6 @@ public double determineInterestRate(Long accountId, double creditScore) {
   private static final Logger log = LoggerFactory.getLogger(LoanService.class);
 
     public Map<String, Object> getLoanRepaymentPlan(Long accountId, double requestedAmount, int requestedDuration) {
-        log.info("➡️ Début getLoanRepaymentPlan pour accountId={} montant={} durée={}", accountId, requestedAmount, requestedDuration);
 
         double creditScore = creditScoreService.calculateCreditScore(accountId);
         log.info("✅ Credit Score récupéré : {}", creditScore);
@@ -329,90 +372,312 @@ public double determineInterestRate(Long accountId, double creditScore) {
         log.info("✅ Réponse générée avec succès pour accountId={}", accountId);
         return result;
     }
-
-    public Loan createLoan(Long accountId, double requestedAmount, int requestedDuration, String repaymentType) {
-        log.info("➡️ Début createLoan pour accountId={} montant={} durée={}", accountId, requestedAmount, requestedDuration);
-
-        // Appel de la fonction pour obtenir le plan de remboursement
-        Map<String, Object> repaymentPlan = getLoanRepaymentPlan(accountId, requestedAmount, requestedDuration);
-
-        // Extraire les informations nécessaires depuis le plan de remboursement
-        double grantedAmount = ((BigDecimal) repaymentPlan.get("🟢 Montant accordé")).doubleValue();
-        double interestRate = ((BigDecimal) repaymentPlan.get("Taux d'intérêt")).doubleValue();
-        // List<Map<String, Object>> annuitySchedule = (List<Map<String, Object>>) repaymentPlan.get("Plan Annuités Constantes");
-       // List<Map<String, Object>> amortizationSchedule = (List<Map<String, Object>>) repaymentPlan.get("Plan Amortissement Constant");
-        List<Map<String, Object>> selectedRepaymentSchedule = new ArrayList<>();
-        log.info("📊 Contenu de repaymentPlan: {}", repaymentPlan);
-        log.info("🔑 Clés disponibles dans repaymentPlan: {}", repaymentPlan.keySet());
-
-        String repaymentKey = repaymentType.equalsIgnoreCase("annuity") ? "Plan Annuités Constantes" :
-                repaymentType.equalsIgnoreCase("amortization") ? "Plan Amortissement Constant" : null;
-
-        if (repaymentKey != null && repaymentPlan.containsKey(repaymentKey)) {
-            selectedRepaymentSchedule = (List<Map<String, Object>>) repaymentPlan.get(repaymentKey);
-            log.info("✅ Plan '{}' sélectionné.", repaymentKey);
+    private double toDouble(Object value) {
+        if (value instanceof BigDecimal) {
+            return ((BigDecimal) value).doubleValue();
+        } else if (value instanceof Number) {
+            return ((Number) value).doubleValue();  // Gère aussi Integer, Float, etc.
         } else {
-            log.error("❌ Type de remboursement invalide : {}", repaymentType);
-            throw new IllegalArgumentException("❌ Type de remboursement invalide. Choisissez entre 'annuity' ou 'amortization'.");
+            throw new IllegalArgumentException("Type non supporté : " + value.getClass().getName());
         }
-
-        // Création du prêt
-        Loan loan = new Loan();
-        loan.setAmount(grantedAmount);
-        loan.setDuration(requestedDuration);
-        loan.setInterestRate(interestRate);
-       // loan.setAccountId(accountId); // L'ID du compte de l'utilisateur
-        loan.setStatus(Loan_Status.IN_PROGRESS); // Statut initial du prêt
-        loan.setRequest_date(new Date());
-
-        // Enregistrement du prêt dans la base de données
-        loanRepository.save(loan);
-        log.info("✅ Prêt créé avec succès pour accountId={}", accountId);
-        LocalDate loanStartDate = LocalDate.now(); // Ou utilisez loan.getRequest_date() si la date est déjà définie
-        LocalDate nextPaymentDate = loanStartDate.plusMonths(1); // Premier paiement le mois suivant
-
-        // Traitement des remboursements
-        List<Repayment> repayments = new ArrayList<>();
-        double remainingPrincipal = grantedAmount;
-
-        // Parcours du plan d'annuité constante pour créer les objets Repayment
-        for (Map<String, Object> annuity : selectedRepaymentSchedule) {
-            Repayment repayment = new Repayment();
-
-            // Convertir LocalDate en Date avant de l'affecter à expectedPaymentDate
-            Date expectedDate = Date.from(nextPaymentDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
-            repayment.setExpectedPaymentDate(expectedDate);
-
-            repayment.setMonthly_amount((double) annuity.get("Mensualité"));
-            repayment.setInterest((double) annuity.get("Intérêts"));
-            repayment.setRemainingPrincipal(remainingPrincipal);
-            repayment.setRepaidPrincipal((double) annuity.get("Capital Remboursé"));
-            repayment.setStatus(Repayment_Status.IN_PROGRESS); // Statut initial
-            repayment.setLoan(loan); // Associer le remboursement au prêt
-
-            // Calcul du capital restant après ce remboursement
-            remainingPrincipal -= (double) annuity.get("Capital Remboursé");
-
-            repayments.add(repayment);
-
-            // Incrémenter la date de paiement pour le prochain remboursement
-            nextPaymentDate = nextPaymentDate.plusMonths(1);
-        }
-
-        // Sauvegarder les remboursements associés au prêt
-        repaymentRepository.saveAll(repayments);
-        log.info("✅ Remboursements enregistrés avec succès pour le prêt {}", loan.getIdLoan());
-        Loan loan1 = loanRepository.findById(loan.getIdLoan()).orElse(null);
-
-        // Enregistrer la transaction du prêt
-      //  ITransactionService iTransactionService = new ITransactionServiceImpl();  // ou autre implémentation concrète
-
-        transactionService.depositLoan(accountId, grantedAmount, "192.168.1.1", loan1);
-        log.info("✅ Transaction pour le prêt enregistrée.");
-
-        return loan;
     }
 
+public Loan createLoan(Long accountId, double requestedAmount, int requestedDuration, String repaymentType) {
+    log.info("➡️ Début createLoan pour accountId={} montant={} durée={}", accountId, requestedAmount, requestedDuration);
+
+    // Appel de la fonction pour obtenir le plan de remboursement
+    Map<String, Object> repaymentPlan = getLoanRepaymentPlan(accountId, requestedAmount, requestedDuration);
+
+    // Affichage du contenu du plan de remboursement et des clés
+    log.info("📊 Contenu de repaymentPlan: {}", repaymentPlan);
+    log.info("🔑 Clés disponibles dans repaymentPlan: {}", repaymentPlan.keySet());
+
+    // Extraire les informations nécessaires depuis le plan de remboursement
+    Object grantedAmountObj = repaymentPlan.get("🟢 Montant accordé");
+    Object interestRateObj = repaymentPlan.get("Taux d'intérêt");
+
+    // Logs pour observer les objets et leurs types
+    log.info("🔍 grantedAmountObj: {} | Type: {}", grantedAmountObj, grantedAmountObj.getClass().getName());
+    log.info("🔍 interestRateObj: {} | Type: {}", interestRateObj, interestRateObj.getClass().getName());
+
+
+    double grantedAmount = toDouble(repaymentPlan.get("🟢 Montant accordé"));
+    double interestRate = toDouble(repaymentPlan.get("Taux d'intérêt"));
+
+    // Traitement du type de remboursement
+    List<Map<String, Object>> selectedRepaymentSchedule = new ArrayList<>();
+    String repaymentKey = repaymentType.equalsIgnoreCase("annuity") ? "Plan Annuités Constantes" :
+            repaymentType.equalsIgnoreCase("amortization") ? "Plan Amortissement Constant" : null;
+
+    if (repaymentKey != null && repaymentPlan.containsKey(repaymentKey)) {
+        selectedRepaymentSchedule = (List<Map<String, Object>>) repaymentPlan.get(repaymentKey);
+        log.info("✅ Plan '{}' sélectionné.", repaymentKey);
+    } else {
+        log.error("❌ Type de remboursement invalide : {}", repaymentType);
+        throw new IllegalArgumentException("❌ Type de remboursement invalide. Choisissez entre 'annuity' ou 'amortization'.");
+    }
+
+    // Création du prêt
+    Loan loan = new Loan();
+    loan.setAmount(grantedAmount);
+    loan.setDuration(requestedDuration);
+    loan.setInterestRate(interestRate);
+    loan.setStatus(Loan_Status.IN_PROGRESS); // Statut initial du prêt
+    loan.setRequest_date(new Date());
+    // Enregistrement du prêt dans la base de données
+    loanRepository.save(loan);
+    // Générer le document PDF après que l'ID soit généré
+    try {
+        // Générer le document PDF en utilisant l'ID du prêt
+        loan.setLoanPdf(generateLoanDocument(loan.getIdLoan()));
+    } catch (IOException e) {
+        e.printStackTrace(); // Affiche l'erreur dans la console
+        throw new RuntimeException("Erreur lors de la génération du document PDF", e);
+    }
+
+// Mettre à jour le prêt dans la base de données avec le PDF généré
+    loanRepository.save(loan);
+
+
+
+    log.info("✅ Prêt créé avec succès pour accountId={}", accountId);
+
+    LocalDate loanStartDate = LocalDate.now(); // Ou utilisez loan.getRequest_date() si la date est déjà définie
+    LocalDate nextPaymentDate = loanStartDate.plusMonths(1); // Premier paiement le mois suivant
+
+    // Traitement des remboursements
+    List<Repayment> repayments = new ArrayList<>();
+    double remainingPrincipal = grantedAmount;
+
+    // Parcours du plan d'annuité constante pour créer les objets Repayment
+    for (Map<String, Object> annuity : selectedRepaymentSchedule) {
+        Repayment repayment = new Repayment();
+
+        // Convertir LocalDate en Date avant de l'affecter à expectedPaymentDate
+        Date expectedDate = Date.from(nextPaymentDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
+        repayment.setExpectedPaymentDate(expectedDate);
+        repayment.setMonthly_amount(((BigDecimal) annuity.get("Mensualité")).setScale(3, RoundingMode.HALF_UP).doubleValue());
+        repayment.setInterest(((BigDecimal)  annuity.get("Intérêts")).setScale(3, RoundingMode.HALF_UP).doubleValue());
+        remainingPrincipal -= ((BigDecimal) annuity.get("Capital Remboursé")).setScale(3, RoundingMode.HALF_UP).doubleValue();
+        repayment.setRemainingPrincipal(new BigDecimal(remainingPrincipal).setScale(3, RoundingMode.HALF_UP).doubleValue());
+        repayment.setRepaidPrincipal(((BigDecimal)  annuity.get("Capital Remboursé")).setScale(3, RoundingMode.HALF_UP).doubleValue());
+        repayment.setStatus(Repayment_Status.IN_PROGRESS); // Statut initial
+        repayment.setLoan(loan); // Associer le remboursement au prêt
+        // Calcul du capital restant après ce remboursement
+
+        repayments.add(repayment);
+
+        // Incrémenter la date de paiement pour le prochain remboursement
+        nextPaymentDate = nextPaymentDate.plusMonths(1);
+    }
+
+    // Sauvegarder les remboursements associés au prêt
+    repaymentRepository.saveAll(repayments);
+    log.info("✅ Remboursements enregistrés avec succès pour le prêt {}", loan.getIdLoan());
+
+    Loan loan1 = loanRepository.findById(loan.getIdLoan()).orElse(null);
+
+    // Enregistrer la transaction du prêt
+    transactionService.depositLoan(accountId, grantedAmount, "192.168.1.1", loan1);
+    log.info("✅ Transaction pour le prêt enregistrée.");
+    // Appel du service d'envoi d'email après création du prêt
+    try {
+        sendLoanEmail("rihabc184@gmail.com", loan.getIdLoan());
+        System.out.println("tried sending");
+    } catch (MessagingException | IOException e) {
+        // Gérer l'exception ici, comme logger l'erreur
+        e.printStackTrace();  // Exemple : afficher l'exception dans la console
+    }
+
+    return loan;
+}
+    public byte[] generateLoanDocument(Long loanId) throws java.io.IOException {
+        // Récupérer le prêt
+        tn.esprit.rechargeplus.entities.Loan loan = loanRepository.findById(loanId)
+                .orElseThrow(() -> new IllegalArgumentException("Loan not found"));
+
+        // Créer un document PDF avec iText 7
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        com.itextpdf.kernel.pdf.PdfWriter writer = new com.itextpdf.kernel.pdf.PdfWriter(baos);
+        com.itextpdf.kernel.pdf.PdfDocument pdfDoc = new com.itextpdf.kernel.pdf.PdfDocument(writer);
+        com.itextpdf.layout.Document document = new com.itextpdf.layout.Document(pdfDoc);
+
+        // Charger l'image du logo (assurez-vous que le chemin est correct)
+        String logoPathRight = "C:\\Users\\Rihab\\Downloads\\RechargePlus.png";  // Remplacez par le chemin de votre logo à droite
+        String logoPathLeft = "C:\\Users\\Rihab\\Downloads\\EspritLogo.png"; // Remplacez par le chemin de votre logo à gauche
+
+// Logo à droite
+        Image logoRight = new Image(ImageDataFactory.create(logoPathRight));
+        logoRight.setFixedPosition(pdfDoc.getDefaultPageSize().getWidth() - 170, pdfDoc.getDefaultPageSize().getTop() - 120); // Positionne le logo à 150px du bord droit et à 100px du haut de la page
+        logoRight.scaleToFit(140, 160); // Redimensionne l'image pour qu'elle ait une largeur et une hauteur de 100px
+
+// Ajouter le logo à droite
+        document.add(logoRight);
+
+// Logo à gauche
+        Image logoLeft = new Image(ImageDataFactory.create(logoPathLeft));
+        logoLeft.setFixedPosition(50, pdfDoc.getDefaultPageSize().getTop() - 120); // Positionne le logo à 50px du bord gauche et à 100px du haut de la page
+        logoLeft.scaleToFit(120, 150); // Redimensionne l'image pour qu'elle ait une largeur et une hauteur de 100px
+
+       // Ajouter le logo à gauche
+        document.add(logoLeft);
+        // Ajouter un Div pour créer un espace entre le logo et le contenu suivant
+        com.itextpdf.layout.element.Div spacer = new com.itextpdf.layout.element.Div();
+        spacer.setHeight(80); // hauteur de l'espace, ajustable selon la taille du logo
+        document.add(spacer);
+
+
+        // Ajouter le titre du contrat
+        document.add(new com.itextpdf.layout.element.Paragraph("CONTRAT DE PRÊT")
+                .setBold().setFontSize(18).setTextAlignment(com.itextpdf.layout.properties.TextAlignment.CENTER));
+
+        // Ajouter un Div pour créer un espace entre le logo et le contenu suivant
+        com.itextpdf.layout.element.Div spacer1 = new com.itextpdf.layout.element.Div();
+        spacer1.setHeight(80); // hauteur de l'espace, ajustable selon la taille du logo
+        document.add(spacer1);
+
+        // Ajouter les informations sur le prêteur et l'emprunteur
+        document.add(new com.itextpdf.layout.element.Paragraph("1. PRÊTEUR")
+                .setBold().setFontSize(14));
+        document.add(new com.itextpdf.layout.element.Paragraph("Nom de l'entreprise : RechargePlus S.A."));
+        document.add(new com.itextpdf.layout.element.Paragraph("Adresse : lot 13, V5XR+M37 Résidence Essalem II, Av. Fethi Zouhir, Cebalat Ben Ammar 2083"));
+        document.add(new com.itextpdf.layout.element.Paragraph("Registre de commerce : R12/123456/09"));
+        document.add(new com.itextpdf.layout.element.Paragraph("Matricule fiscal : 123456789/0/3"));
+
+        document.add(new com.itextpdf.layout.element.Paragraph("2. EMPRUNTEUR")
+                .setBold().setFontSize(14));
+        //dans repo user add :     User findByAccountsTransactionsIdloan(long idLoan);
+        // user.getName()
+        document.add(new com.itextpdf.layout.element.Paragraph("Nom et prénom : Flen Fouleni"));
+        document.add(new com.itextpdf.layout.element.Paragraph("CIN : [Numéro de la carte d’identité nationale]"));
+        document.add(new com.itextpdf.layout.element.Paragraph("Adresse : [Adresse complète]"));
+
+        // Ajouter l'objet du contrat
+        document.add(new com.itextpdf.layout.element.Paragraph("ARTICLE 1 – OBJET DU CONTRAT")
+                .setBold().setFontSize(14));
+        document.add(new com.itextpdf.layout.element.Paragraph("Le présent contrat a pour objet d’établir les conditions générales du prêt accordé par le Prêteur à l’Emprunteur, ainsi que les modalités de remboursement et les obligations de chaque partie."));
+
+        // Ajouter les montants et conditions du prêt
+        document.add(new com.itextpdf.layout.element.Paragraph("ARTICLE 2 – MONTANT ET CONDITIONS DU PRÊT")
+                .setBold().setFontSize(14));
+        document.add(new com.itextpdf.layout.element.Paragraph("Le Prêteur accorde à l’Emprunteur un prêt d’un montant de " + loan.getAmount() + " TND, destiné à son propore motif personnel ."));
+        document.add(new com.itextpdf.layout.element.Paragraph("Le taux d’intérêt appliqué est de " + loan.getInterestRate() + " % annuel."));
+        document.add(new com.itextpdf.layout.element.Paragraph("Le prêt est accordé pour une durée de " + loan.getDuration() + " mois."));
+
+        // Ajouter un tableau pour les remboursements
+        com.itextpdf.layout.element.Table repaymentTable = new com.itextpdf.layout.element.Table(5); // 5 colonnes pour les détails
+
+        // Ajouter les entêtes du tableau
+        repaymentTable.addCell("Date de paiement");
+        repaymentTable.addCell("Montant mensualité");
+        repaymentTable.addCell("Intérêts");
+        repaymentTable.addCell("Capital restant dû");
+        repaymentTable.addCell("Capital remboursé");
+
+
+        // Ajouter les lignes du tableau pour chaque remboursement
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+        java.util.List<tn.esprit.rechargeplus.entities.Repayment> repayments = repaymentRepository.findByloanIdLoan(loanId);
+        for (tn.esprit.rechargeplus.entities.Repayment repayment : repayments) {
+
+            String formattedDate = dateFormat.format(repayment.getExpectedPaymentDate());
+           // repaymentTable.addCell(repayment.getExpectedPaymentDate().toString());
+            repaymentTable.addCell(formattedDate);
+            repaymentTable.addCell(String.valueOf(repayment.getMonthly_amount()));
+            repaymentTable.addCell(String.valueOf(repayment.getInterest()));
+            repaymentTable.addCell(String.valueOf(repayment.getRemainingPrincipal()));
+            repaymentTable.addCell(String.valueOf(repayment.getRepaidPrincipal()));
+        }
+
+        // Ajouter le tableau des remboursements au document
+        document.add(repaymentTable);
+
+
+        // Ajouter les garanties et engagements
+        document.add(new com.itextpdf.layout.element.Paragraph("ARTICLE 4 – GARANTIES ET ENGAGEMENTS")
+                .setBold().setFontSize(14));
+        document.add(new com.itextpdf.layout.element.Paragraph("L'Emprunteur s'engage à fournir une garantie sous forme de [Type de garantie : caution, hypothèque, etc.] pour couvrir le prêt."));
+
+        // Ajouter les pénalités en cas de retard
+        document.add(new com.itextpdf.layout.element.Paragraph("ARTICLE 5 – RETARD DE PAIEMENT ET CONSÉQUENCES")
+                .setBold().setFontSize(14));
+        document.add(new com.itextpdf.layout.element.Paragraph("En cas de retard de paiement supérieur à [X] jours, l’Emprunteur sera redevable d’une pénalité de [X] % du montant dû par mois de retard."));
+
+        // Ajouter la résiliation du contrat
+        document.add(new com.itextpdf.layout.element.Paragraph("ARTICLE 6 – RÉSILIATION DU CONTRAT")
+                .setBold().setFontSize(14));
+        document.add(new com.itextpdf.layout.element.Paragraph("Le contrat pourra être résilié de plein droit en cas de fausse déclaration de l’Emprunteur, de non-paiement de [X] mensualités consécutives, ou d’utilisation frauduleuse des fonds prêtés."));
+
+        // Ajouter la loi applicable et la juridiction compétente
+        document.add(new com.itextpdf.layout.element.Paragraph("ARTICLE 7 – LOI APPLICABLE ET JURIDICTION COMPÉTENTE")
+                .setBold().setFontSize(14));
+        document.add(new com.itextpdf.layout.element.Paragraph("Le présent contrat est régi par les lois en vigueur en Tunisie, notamment le Code des obligations et des contrats. En cas de litige, le Tribunal de commerce de Tunis sera seul compétent."));
+
+        // Ajouter la signature
+        document.add(new com.itextpdf.layout.element.Paragraph("ARTICLE 8 – SIGNATURES")
+                .setBold().setFontSize(14));
+        document.add(new com.itextpdf.layout.element.Paragraph("Fait à [Lieu], le [Date]."));
+        document.add(new com.itextpdf.layout.element.Paragraph("Le Prêteur"));
+        document.add(new com.itextpdf.layout.element.Paragraph("RechargePlus S.A."));
+        document.add(new com.itextpdf.layout.element.Paragraph("[Signature du Prêteur]"));
+        document.add(new com.itextpdf.layout.element.Paragraph("L’Emprunteur"));
+        document.add(new com.itextpdf.layout.element.Paragraph("[Signature de l’Emprunteur]"));
+
+        // Fermer le document
+        document.close();
+
+        return baos.toByteArray(); // Retourner le PDF en tant que tableau de bytes
+    }
+
+
+    public void sendLoanEmail(String toEmail, Long loanId) throws MessagingException, java.io.IOException {
+        // Générer le PDF en tableau de bytes (this is where you generate the PDF as a byte array)
+        byte[] loanPdfBytes = generateLoanDocument(loanId);
+
+        final String username = "RechargePlus@zoho.com";  // Zoho SMTP username
+        final String password = "RecharginiAman123";  // Zoho SMTP password
+
+        Properties props = new Properties();
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.host", "smtp.zoho.com");  // Zoho SMTP server
+        props.put("mail.smtp.port", "587");  // Port for Zoho's TLS security
+
+        // Create the Session object with authentication
+        Session session = Session.getInstance(props,
+                new Authenticator() {
+                    @Override
+                    protected PasswordAuthentication getPasswordAuthentication() {
+                        return new PasswordAuthentication(username, password);
+                    }
+                });
+
+        // Create a MimeMessage for the email
+        Message message = new MimeMessage(session);
+        String from = "RechargePlus@zohomail.com";  // Sender's email address
+
+        message.setFrom(new InternetAddress(from));
+        // Set recipient email field
+        message.setRecipient(Message.RecipientType.TO, new InternetAddress(toEmail));  // Dynamic email from parameter
+        // Set email subject field
+        message.setSubject("Merci pour votre demande de prêt");
+
+        // Set the text content of the email
+        message.setText("Cher client,\n\nMerci d'avoir interagi avec notre application pour obtenir un prêt. "
+                + "Nous sommes heureux de vous informer que votre demande a été traitée. "
+                + "Veuillez trouver ci-joint le contrat pour votre prêt  ."
+                + "Cordialement,\nL'équipe de l'application RechargePlus ");
+
+        // Uncomment the following lines to attach the generated PDF file to the email
+
+    ByteArrayDataSource dataSource = new ByteArrayDataSource(loanPdfBytes, "application/pdf");
+    message.setDataHandler(new DataHandler(dataSource));
+    message.setFileName("Contrat_Pret_" + loanId + ".pdf");
+
+
+        // Send the email
+        Transport.send(message);
+    }
 
 
 

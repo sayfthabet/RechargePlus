@@ -2,12 +2,15 @@ package tn.esprit.rechargeplus.controllers;
 
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import tn.esprit.rechargeplus.services.ICreditScoreService;
 import tn.esprit.rechargeplus.services.ILoanService;
 import tn.esprit.rechargeplus.entities.Loan;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +27,8 @@ public class LoanController {
 
     //CRUD
     @GetMapping("/getloans")
-    public List<Loan> allLoans(){return loanservice.retriveAll();}
+    public List<Loan> allLoans()  {
+        return loanservice.retriveAll();}
     @PostMapping("/addLoan")
     public Loan addLoan(@RequestBody Loan loan){return loanservice.addLoan(loan);}
     @DeleteMapping("deleteLoan/{id}")
@@ -46,6 +50,82 @@ public class LoanController {
                            @PathVariable String repaymentType) {
         return loanservice.createLoan(accountId, requestedAmount, requestedDuration, repaymentType);
     }
+    @GetMapping("/{loanId}/ContratPdf")
+    public ResponseEntity<byte[]> generateLoanPdf(@PathVariable Long loanId) {
+        try {
+            byte[] pdfBytes = loanservice.generateLoanDocument(loanId);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.add("Content-Disposition", "attachment; filename=loan-details.pdf");
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                    .body(pdfBytes);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
+   /* @GetMapping("/loans/{loanId}/downloadContrat")
+    public ResponseEntity<byte[]> downloadLoanDocument(@PathVariable Long loanId) {
+        try {
+            // Générer le PDF en tant que tableau de bytes
+            byte[] pdfBytes = loanservice.generateLoanDocument(loanId);
+
+
+                // Définir les en-têtes HTTP pour le téléchargement du fichier
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.setContentDisposition(ContentDisposition.attachment()
+                    .filename("Loan_Document_" + loanId + ".pdf")
+                    .build());
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(pdfBytes);
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(null);
+        }
+    }*/
+   @GetMapping("/loans/{loanId}/downloadContrat")
+   public ResponseEntity<byte[]> downloadLoanDocument(@PathVariable Long loanId) {
+       try {
+           // Générer le document PDF
+           byte[] pdfBytes = loanservice.generateLoanDocument(loanId);
+
+           // Spécifier le chemin où le fichier PDF sera sauvegardé localement
+           String downloadPath = "C:\\Users\\Rihab\\Downloads\\Loan_" + loanId + ".pdf";
+           File file = new File(downloadPath);
+
+           // Sauvegarder le fichier localement
+           try (FileOutputStream fos = new FileOutputStream(file)) {
+               fos.write(pdfBytes);
+           }
+
+           // Vérifier si le fichier a bien été créé
+           if (file.exists()) {
+               System.out.println("Fichier téléchargé avec succès : " + file.getAbsolutePath());
+           } else {
+               System.out.println("Échec du téléchargement du fichier.");
+           }
+
+           // Définir les en-têtes HTTP pour télécharger le fichier
+           HttpHeaders headers = new HttpHeaders();
+           headers.setContentType(MediaType.APPLICATION_PDF);
+           headers.setContentDisposition(ContentDisposition.attachment()
+                   .filename(file.getName())
+                   .build());
+
+           return ResponseEntity.ok()
+                   .headers(headers)
+                   .body(pdfBytes);
+       } catch (IOException e) {
+           return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+       }
+   }
+
 
 
     @GetMapping("/fraudTransaction/{accountId}")
