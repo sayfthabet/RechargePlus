@@ -1,12 +1,13 @@
-package tn.esprit.rechargeplus.controllers;
+package tn.esprit.rechargeplus.controllers.LoanControllers;
 
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
-import tn.esprit.rechargeplus.services.ICreditScoreService;
-import tn.esprit.rechargeplus.services.ILoanService;
+
 import tn.esprit.rechargeplus.entities.Loan;
+import tn.esprit.rechargeplus.services.LoanService.ICreditScoreService;
+import tn.esprit.rechargeplus.services.LoanService.ILoanService;
 
 import java.io.File;
 import java.io.FileOutputStream;

@@ -1,11 +1,12 @@
-package tn.esprit.rechargeplus.services;
+package tn.esprit.rechargeplus.services.LoanService;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import tn.esprit.rechargeplus.entities.*;
 import tn.esprit.rechargeplus.repositories.AccountRepository;
-import tn.esprit.rechargeplus.repositories.ILoanRepository;
+import tn.esprit.rechargeplus.repositories.LoanRepository.ILoanRepository;
 import tn.esprit.rechargeplus.repositories.TransactionRepository;
+
 
 import java.text.SimpleDateFormat;
 import java.time.YearMonth;

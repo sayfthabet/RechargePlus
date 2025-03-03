@@ -1,19 +1,18 @@
-package tn.esprit.rechargeplus.services;
+package tn.esprit.rechargeplus.services.LoanService;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 import tn.esprit.rechargeplus.entities.Guarantor;
-import tn.esprit.rechargeplus.entities.Guarantor;
-import tn.esprit.rechargeplus.repositories.IGuarantorRepository;
+import tn.esprit.rechargeplus.repositories.LoanRepository.IGuarantorRepository;
+
 
 import java.io.IOException;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class GuarantorService  implements  IGuarantorService {
+public class GuarantorService  implements IGuarantorService {
 
     @Autowired
     IGuarantorRepository guarantorRepository;

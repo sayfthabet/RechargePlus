@@ -1,4 +1,4 @@
-package tn.esprit.rechargeplus.services;
+package tn.esprit.rechargeplus.services.LoanService;
 import tn.esprit.rechargeplus.entities.Repayment;
 
 import java.io.IOException;

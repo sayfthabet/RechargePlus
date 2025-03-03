@@ -1,6 +1,5 @@
-package tn.esprit.rechargeplus.services;
+package tn.esprit.rechargeplus.services.LoanService;
 
-import org.springframework.web.multipart.MultipartFile;
 import tn.esprit.rechargeplus.entities.Guarantor;
 
 import java.io.IOException;

@@ -1,17 +1,16 @@
-package tn.esprit.rechargeplus.services;
+package tn.esprit.rechargeplus.services.LoanService;
 
 import com.itextpdf.io.image.ImageDataFactory;
 import jakarta.mail.*;
 import jakarta.mail.internet.*;
-import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import tn.esprit.rechargeplus.entities.*;
-import tn.esprit.rechargeplus.repositories.IGuarantorRepository;
-import tn.esprit.rechargeplus.repositories.ILoanRepository;
+import tn.esprit.rechargeplus.repositories.LoanRepository.IGuarantorRepository;
+import tn.esprit.rechargeplus.repositories.LoanRepository.ILoanRepository;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
 //import javax.activation.DataHandler;
@@ -39,7 +38,8 @@ import jakarta.mail.internet.MimeMessage;
 
 
 import org.slf4j.Logger;
-import tn.esprit.rechargeplus.repositories.IRepaymentRepository;
+import tn.esprit.rechargeplus.repositories.LoanRepository.IRepaymentRepository;
+import tn.esprit.rechargeplus.services.TransactionService;
 
 
 @Service
@@ -435,6 +435,7 @@ public class LoanService implements ILoanService {
         loan.setStatus(Loan_Status.IN_PROGRESS); // Statut initial du prêt
         loan.setRequest_date(new Date());
         loan.setGuarantor(guarantor);
+        loan.setRemaining_repayment(grantedAmount);
         // Enregistrement du prêt dans la base de données
         loanRepository.save(loan);
         // Générer le document PDF après que l'ID soit généré
@@ -689,11 +690,13 @@ public class LoanService implements ILoanService {
         // Send the email
         Transport.send(message);
     }
-    @Scheduled(cron = "0 00 00 * * ?")
-    public void checkLoanRepaymentStatusAndUpdate(Long loanId) throws MessagingException, IOException {
+    @Scheduled(cron = "0 12 21 * * ?")
+    public void checkLoanRepaymentDefault() throws MessagingException, IOException {
+        List<Loan> activeLoans = loanRepository.findByStatus(Loan_Status.IN_PROGRESS);
+
+        for (Loan loan : activeLoans) {
         // Récupérer tous les remboursements liés au prêt
-        List<Repayment> repayments = repaymentRepository.findByloanIdLoan(loanId);
-        Loan loan = loanRepository.findById(loanId).orElseThrow(() -> new RuntimeException("Loan not found"));
+        List<Repayment> repayments = repaymentRepository.findByloanIdLoan(loan.getIdLoan());
 
         // Vérifier si tous les remboursements sont en retard (LATE)
         boolean allRepaymentsLate = repayments.stream()
@@ -704,19 +707,20 @@ public class LoanService implements ILoanService {
             loan.setStatus(Loan_Status.DEFAULT);
             loanRepository.save(loan);
 
-            log.info("Loan with ID {} is now marked as DEFAULT due to all repayments being late.", loanId);
+            log.info("Loan with ID {} is now marked as DEFAULT due to all repayments being late.", loan.getIdLoan());
 
             // Envoyer les emails au client et au garant
-            sendLoanDefaultEmailToClient("rihabc184@gmail.com", loanId);
-            sendLoanDefaultEmailToGuarantor(loan.getGuarantor().getEmail(), loanId);
-        }
+            sendLoanDefaultEmailToClient("rihabc184@gmail.com", loan.getIdLoan());
+            sendLoanDefaultEmailToGuarantor(loan.getGuarantor().getEmail(), loan.getIdLoan());
+        }}
     }
-    @Scheduled(cron = "0 00 00 * * ?")
-    public void checkLoanRepaymentStatus(Long loanId) throws MessagingException, IOException {
+    @Scheduled(cron = "0 22 21 * * ?")
+    public void checkLoanRepaymentPaid() throws MessagingException, IOException {
+        List<Loan> activeLoans = loanRepository.findByStatus(Loan_Status.IN_PROGRESS);
+
+        for (Loan loan : activeLoans) {
         // Récupérer tous les remboursements liés au prêt
-        List<Repayment> repayments = repaymentRepository.findByloanIdLoan(loanId);
-        Loan loan = loanRepository.findById(loanId)
-                .orElseThrow(() -> new RuntimeException("Loan not found"));
+        List<Repayment> repayments = repaymentRepository.findByloanIdLoan(loan.getIdLoan());
 
         // Vérifier s'il y a au moins un remboursement en retard
         boolean hasLateRepayment = repayments.stream()
@@ -730,16 +734,16 @@ public class LoanService implements ILoanService {
         if (allRepaymentsPaid) {
             if (hasLateRepayment) {
                 loan.setStatus(Loan_Status.REPAID_LATE);
-                log.info("Loan with ID {} is now marked as REPAID_LATE.", loanId);
+                log.info("Loan with ID {} is now marked as REPAID_LATE.", loan.getIdLoan());
             } else {
                 loan.setStatus(Loan_Status.REPAID);
-                log.info("Loan with ID {} is now marked as REPAID.", loanId);
+                log.info("Loan with ID {} is now marked as REPAID.", loan.getIdLoan());
             }
             loanRepository.save(loan);
 
             // Envoyer un email de confirmation au client et au garant
-            sendLoanPaidEmailToClient("rihabc184@gmail.com", loanId, loan.getStatus());
-
+            sendLoanPaidEmailToClient("rihabc184@gmail.com", loan.getIdLoan(), loan.getStatus());
+        }
         }
     }
 

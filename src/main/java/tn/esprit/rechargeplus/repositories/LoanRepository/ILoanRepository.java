@@ -1,4 +1,4 @@
-package tn.esprit.rechargeplus.repositories;
+package tn.esprit.rechargeplus.repositories.LoanRepository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -13,5 +13,7 @@ public interface ILoanRepository extends JpaRepository<Loan, Long> {
     List<Loan> findByTransactionsAccountId(long accountId);// Trouver les prêts d'un compte
     List<Loan> findByTransactionsAccountIdAndStatus(long accountId, Loan_Status status);// Trouver les prets en cours d'un compte
     List<Loan> findByTransactionsAccountIdAndStatusIn(Long accountId, List<Loan_Status> statuses);
+
+    List<Loan> findByStatus(Loan_Status status);
 
 }

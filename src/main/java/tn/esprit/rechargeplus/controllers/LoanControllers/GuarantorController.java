@@ -1,14 +1,14 @@
-package tn.esprit.rechargeplus.controllers;
+package tn.esprit.rechargeplus.controllers.LoanControllers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import tn.esprit.rechargeplus.entities.Guarantor;
-import tn.esprit.rechargeplus.services.IGuarantorService;
+import tn.esprit.rechargeplus.services.LoanService.IGuarantorService;
+
 
 import java.io.IOException;
 import java.util.List;

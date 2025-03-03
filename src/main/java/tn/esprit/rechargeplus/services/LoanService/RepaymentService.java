@@ -1,27 +1,33 @@
-package tn.esprit.rechargeplus.services;
+package tn.esprit.rechargeplus.services.LoanService;
 
 import com.twilio.Twilio;
 import com.twilio.rest.api.v2010.account.Message;
-import jakarta.activation.DataHandler;
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
-import jakarta.mail.util.ByteArrayDataSource;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import tn.esprit.rechargeplus.entities.Loan;
 import tn.esprit.rechargeplus.entities.Repayment_Status;
 import tn.esprit.rechargeplus.entities.Transaction;
-import tn.esprit.rechargeplus.repositories.ILoanRepository;
-import tn.esprit.rechargeplus.repositories.IRepaymentRepository;
+import tn.esprit.rechargeplus.repositories.LoanRepository.ILoanRepository;
+import tn.esprit.rechargeplus.repositories.LoanRepository.IRepaymentRepository;
 import tn.esprit.rechargeplus.entities.Repayment;
+import tn.esprit.rechargeplus.repositories.TransactionRepository;
+import tn.esprit.rechargeplus.services.TransactionService;
 import tn.esprit.rechargeplus.services.exceptions.*;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
+import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 
@@ -31,7 +37,13 @@ public class RepaymentService  implements IRepaymentService {
     @Autowired
     IRepaymentRepository repaymentRepository;
     @Autowired
+    TransactionRepository transactionRepository;
+    @Autowired
     TransactionService transactionService;
+    @Autowired
+    ILoanRepository loanRepository;
+    private static final Logger log = LoggerFactory.getLogger(RepaymentService.class);
+
     @Override
     public Repayment addRepayment(Repayment repayment) {
         return repaymentRepository.save(repayment);
@@ -139,33 +151,126 @@ public class RepaymentService  implements IRepaymentService {
 
     }
 
-    @Scheduled(cron = "0 24 3 * * ?")
-    public void UpdateRepaymentStatus(Long accountId,  String ipAddress) throws MessagingException, IOException {
+  /*  @Scheduled(cron = "0 32 17 * * ?")
+    public void UpdateRepaymentStatus( ) throws MessagingException, IOException {
+     //   LocalDate today = LocalDate.now();
+     //   List<Repayment> repaymentsDueToday = repaymentRepository.findByExpectedPaymentDate(java.sql.Date.valueOf(today));
         LocalDate today = LocalDate.now();
-        List<Repayment> repaymentsDueToday = repaymentRepository.findByExpectedPaymentDate(java.sql.Date.valueOf(today));
+        LocalDateTime startOfDay = today.atStartOfDay(); // 2025-03-03T00:00:00
+        LocalDateTime endOfDay = today.atTime(23, 59, 59); // 2025-03-03T23:59:59
+
+        List<Repayment> repaymentsDueToday = repaymentRepository.findRepaymentsDueToday(startOfDay, endOfDay);
+
 
         for (Repayment repayment : repaymentsDueToday) {
+            Loan loan = repayment.getLoan();
+
+            // Trouver une des transactions liées au prêt pour obtenir le accountId
+            Transaction transaction = transactionRepository.findByLoan_IdLoan(loan.getIdLoan())
+                    .stream()
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("No transaction found for loan ID: " + loan.getIdLoan()));
+
+            Long accountId = transaction.getAccount().getId(); // Récupérer accountId depuis la transaction associée
+
             try {
-                // Call withdrawFunds to attempt repayment
-                Transaction transaction = transactionService.withdrawFunds(
-                        accountId, repayment.getMonthly_amount(), ipAddress);
+                // Tentative de retrait des fonds pour effectuer le remboursement
+                Transaction transactionResult = transactionService.withdrawFunds(accountId, repayment.getMonthly_amount(), "192.168.1.1");
 
-
-                // If the transaction is successful, update repayment status to "PAID"
+                // Si la transaction est réussie, mettre à jour le statut du remboursement à "PAID"
                 repayment.setStatus(Repayment_Status.REPAID);
+                repayment.setActualPaymentDate(java.sql.Date.valueOf(today));
                 repaymentRepository.save(repayment);
+                loan.setRemaining_repayment(loan.getTotal_repayment_amount()-repayment.getMonthly_amount());
+                loan.setTotal_repayment_amount(loan.getTotal_repayment_amount()+repayment.getMonthly_amount());
+                loanRepository.save(loan);
+                // Envoyer un email de succès de remboursement
                 sendSuccessRepaymentEmail("rihabc184@gmail.com", repayment.getMonthly_amount(), repayment.getRemainingPrincipal());
+
             } catch (InsufficientFundsException | DailyLimitExceededException e) {
-                // If an exception occurs, update repayment status to "LATE"
+                // Si une exception liée aux fonds insuffisants ou au plafond quotidien se produit
                 repayment.setStatus(Repayment_Status.DEFAULT);
                 repaymentRepository.save(repayment);
 
-                // Send email notification to the user
-                sendDefaultRepaymentEmail("rihabc184@gmail.com", repayment.getMonthly_amount()); } catch (IOException e) {
-                throw new RuntimeException(e);
+                // Envoyer un email de notification de défaut de remboursement
+                sendDefaultRepaymentEmail("rihabc184@gmail.com", repayment.getMonthly_amount());
+
+            } catch (IOException e) {
+                // Gérer l'exception d'entrée/sortie
+                throw new RuntimeException("Error processing repayment email", e);
             }
         }
-    }
+    }*/
+  @Scheduled(cron = "0 25 19 * * ?")
+  public void UpdateRepaymentStatus() throws MessagingException, IOException {
+      log.info("Début de la mise à jour des statuts de remboursement...");
+
+      LocalDate today = LocalDate.now();
+      LocalDateTime startOfDay = today.atStartOfDay(); // 00:00:00
+      LocalDateTime endOfDay = today.atTime(23, 59, 59); // 23:59:59
+
+      log.info("Recherche des remboursements dus entre {} et {}", startOfDay, endOfDay);
+      List<Repayment> repaymentsDueToday = repaymentRepository.findRepaymentsDueToday(startOfDay, endOfDay);
+      log.info("Nombre de remboursements trouvés pour aujourd'hui : {}", repaymentsDueToday.size());
+
+      for (Repayment repayment : repaymentsDueToday) {
+          Loan loan = repayment.getLoan();
+          log.info("Traitement du remboursement ID: {} pour le prêt ID: {}", repayment.getIdRepayment(), loan.getIdLoan());
+
+          try {
+              // Trouver une transaction associée au prêt
+              Optional<Transaction> transactionOpt = transactionRepository.findByLoan_IdLoan(loan.getIdLoan()).stream().findFirst();
+
+              if (transactionOpt.isEmpty()) {
+                  log.warn("Aucune transaction trouvée pour le prêt ID: {}", loan.getIdLoan());
+                  continue; // Passer au remboursement suivant
+              }
+
+              Transaction transaction = transactionOpt.get();
+              Long accountId = transaction.getAccount().getId();
+              log.info("Compte ID {} trouvé pour le prêt ID {}", accountId, loan.getIdLoan());
+
+              // Tentative de retrait des fonds
+              log.info("Tentative de retrait de {} du compte ID: {}", repayment.getMonthly_amount(), accountId);
+              Transaction transactionResult = transactionService.withdrawFunds(accountId, repayment.getMonthly_amount(), "192.168.1.1");
+
+              // Mise à jour du remboursement à "PAID"
+              repayment.setStatus(Repayment_Status.REPAID);
+              repayment.setActualPaymentDate(java.sql.Date.valueOf(today));
+              repaymentRepository.save(repayment);
+              log.info("Remboursement ID: {} marqué comme REPAID", repayment.getIdRepayment());
+
+              // Mise à jour des montants du prêt
+              loan.setRemaining_repayment(loan.getRemaining_repayment() - repayment.getMonthly_amount());
+              loan.setTotal_repayment_amount(loan.getTotal_repayment_amount() + repayment.getMonthly_amount());
+              loanRepository.save(loan);
+              log.info("Montants du prêt ID {} mis à jour : Restant à rembourser = {}, Total remboursé = {}", loan.getIdLoan(), loan.getRemaining_repayment(), loan.getTotal_repayment_amount());
+
+              // Envoyer un email de succès
+              sendSuccessRepaymentEmail("rihabc184@gmail.com", repayment.getMonthly_amount(), loan.getRemaining_repayment());
+              log.info("Email de succès envoyé pour le remboursement ID: {}", repayment.getIdRepayment());
+
+          } catch (InsufficientFundsException | DailyLimitExceededException e) {
+              log.warn("Échec du remboursement ID: {} - Cause: {}", repayment.getIdRepayment(), e.getMessage());
+
+              // Mise à jour du remboursement à "DEFAULT"
+              repayment.setStatus(Repayment_Status.DEFAULT);
+              repaymentRepository.save(repayment);
+              log.info("Remboursement ID: {} marqué comme DEFAULT", repayment.getIdRepayment());
+
+              // Envoyer un email d'échec
+              sendDefaultRepaymentEmail("rihabc184@gmail.com", repayment.getMonthly_amount());
+              log.info("Email de défaut envoyé pour le remboursement ID: {}", repayment.getIdRepayment());
+
+          } catch (IOException e) {
+              log.error("Erreur d'envoi d'email pour le remboursement ID: {}", repayment.getIdRepayment(), e);
+              throw new RuntimeException("Erreur lors de l'envoi des emails", e);
+          }
+      }
+
+      log.info("Fin de la mise à jour des statuts de remboursement.");
+  }
+
     public void sendDefaultRepaymentEmail(String toEmail, double amount) throws MessagingException, java.io.IOException {
         // Générer le PDF en tableau de bytes (this is where you generate the PDF as a byte array)
 
