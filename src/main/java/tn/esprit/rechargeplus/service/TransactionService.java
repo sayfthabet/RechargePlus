@@ -65,8 +65,6 @@ public class TransactionService implements iTransactionService {
                 cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR);
     }
 
-
-
     private double determineFeePercentage() {
         Calendar cal = Calendar.getInstance();
         int hour = cal.get(Calendar.HOUR_OF_DAY);
