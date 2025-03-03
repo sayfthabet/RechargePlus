@@ -10,10 +10,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import java.util.Date;
 
 @Entity
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+
 @ToString
 public class Transaction {
     @Id
@@ -73,5 +70,133 @@ public class Transaction {
     // Assumes destination is stored as "ACC-{accountId}"
     public Long getDestinationAccountId() {
         return Long.parseLong(this.destination.replace("ACC-", ""));
+    }
+
+    public Transaction() {
+    }
+
+    public Transaction(long idTransaction, Date createdAt, String source, String destination, double amount, Transaction_Status status, Loan loan, Account account, InvestmentRequest investment_request, double fee, boolean isReversed, String reversalReason, String ipAddress, Transaction originalTransaction) {
+        this.idTransaction = idTransaction;
+        this.createdAt = createdAt;
+        this.source = source;
+        this.destination = destination;
+        this.amount = amount;
+        this.status = status;
+        this.loan = loan;
+        this.account = account;
+        this.investment_request = investment_request;
+        this.fee = fee;
+        this.isReversed = isReversed;
+        this.reversalReason = reversalReason;
+        this.ipAddress = ipAddress;
+        this.originalTransaction = originalTransaction;
+    }
+
+    public long getIdTransaction() {
+        return idTransaction;
+    }
+
+    public void setIdTransaction(long idTransaction) {
+        this.idTransaction = idTransaction;
+    }
+
+    public Date getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Date createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public String getDestination() {
+        return destination;
+    }
+
+    public void setDestination(String destination) {
+        this.destination = destination;
+    }
+
+    public double getAmount() {
+        return amount;
+    }
+
+    public void setAmount(double amount) {
+        this.amount = amount;
+    }
+
+    public Transaction_Status getStatus() {
+        return status;
+    }
+
+    public void setStatus(Transaction_Status status) {
+        this.status = status;
+    }
+
+    public Loan getLoan() {
+        return loan;
+    }
+
+    public void setLoan(Loan loan) {
+        this.loan = loan;
+    }
+
+    public void setAccount(Account account) {
+        this.account = account;
+    }
+
+    public InvestmentRequest getInvestment_request() {
+        return investment_request;
+    }
+
+    public void setInvestment_request(InvestmentRequest investment_request) {
+        this.investment_request = investment_request;
+    }
+
+    public double getFee() {
+        return fee;
+    }
+
+    public void setFee(double fee) {
+        this.fee = fee;
+    }
+
+    public boolean isReversed() {
+        return isReversed;
+    }
+
+    public void setReversed(boolean reversed) {
+        isReversed = reversed;
+    }
+
+    public String getReversalReason() {
+        return reversalReason;
+    }
+
+    public void setReversalReason(String reversalReason) {
+        this.reversalReason = reversalReason;
+    }
+
+    public String getIpAddress() {
+        return ipAddress;
+    }
+
+    public void setIpAddress(String ipAddress) {
+        this.ipAddress = ipAddress;
+    }
+
+    public Transaction getOriginalTransaction() {
+        return originalTransaction;
+    }
+
+    public void setOriginalTransaction(Transaction originalTransaction) {
+        this.originalTransaction = originalTransaction;
     }
 }
