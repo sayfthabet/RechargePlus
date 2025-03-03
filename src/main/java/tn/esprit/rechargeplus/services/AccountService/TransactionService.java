@@ -2,15 +2,17 @@ package tn.esprit.rechargeplus.services.AccountService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tn.esprit.rechargeplus.entities.Account;
-import tn.esprit.rechargeplus.entities.Transaction;
-import tn.esprit.rechargeplus.entities.Transaction_Status;
+import tn.esprit.rechargeplus.entities.*;
 import tn.esprit.rechargeplus.repositories.AccountRepository.TransactionRepository;
+import tn.esprit.rechargeplus.repositories.LoanRepository.ILoanRepository;
+import tn.esprit.rechargeplus.repositories.LoanRepository.IRepaymentRepository;
 import tn.esprit.rechargeplus.services.AccountService.exceptions.*;
 import tn.esprit.rechargeplus.services.AccountService.exceptions.*;
 
+import java.time.LocalDate;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
@@ -31,6 +33,11 @@ public class TransactionService implements iTransactionService {
         this.accountService = accountService;
         this.fraudService = fraudService;
     }
+
+    @Autowired
+    ILoanRepository loanRepository;
+    @Autowired
+    IRepaymentRepository repaymentRepository;
     @Override
     public Transaction saveTransaction(Transaction transaction) {
         return transactionRepository.save(transaction);
@@ -174,7 +181,7 @@ public class TransactionService implements iTransactionService {
         return transactionRepository.save(reversal);
     }
 
-    @Override
+  /*  @Override
     @Transactional
     public Transaction depositFunds(Long accountId, double amount, String ipAddress) {
         Account account = accountService.retrieveAccountById(accountId);
@@ -197,7 +204,7 @@ public class TransactionService implements iTransactionService {
         logger.info("Deposit of {} to account {}", amount, accountId);
         return transactionRepository.save(transaction);
     }
-
+*/
     @Override
     @Transactional
     public Transaction withdrawFunds(Long accountId, double amount, String ipAddress) {
@@ -241,4 +248,115 @@ public class TransactionService implements iTransactionService {
       //
          return transactionRepository.findByAccountId(accountId);
     }
+
+
+
+
+    /// ////////////////AJOUT POUR loan ET REPAYMENTS!
+    @Override
+    @Transactional
+    public  Transaction depositLoan(Long accountId, double amount, String ipAddress, Loan loan) {
+        Account account = accountService.retrieveAccountById(accountId);
+        if (account == null) {
+            throw new AccountNotFoundException("Account not found");
+        }
+        // Fraud check for large deposits can be added
+        fraudService.checkForFraud(amount, ipAddress);
+
+        account.setAmount(account.getAmount() + amount);
+        accountService.updateAccount(account);
+
+        Transaction transaction = new Transaction();
+        transaction.setSource("SYSTEM");
+        transaction.setDestination("ACC-" + accountId);
+        transaction.setAccount(accountService.retrieveAccountById(accountId));
+        transaction.setAmount(amount);
+        transaction.setFee(determineFeePercentage());
+        transaction.setStatus(Transaction_Status.COMPLETED);
+        transaction.setIpAddress(ipAddress);
+        transaction.setLoan(loan);
+        logger.info("Deposit of {} to account {}", amount, accountId);
+        return transactionRepository.save(transaction);
+    }
+    @Transactional
+    public Transaction depositFunds(Long accountId, double amount, String ipAddress) {
+        Account account = accountService.retrieveAccountById(accountId);
+        if (account == null) {
+            throw new AccountNotFoundException("Account not found");
+        }
+
+        // Vérification anti-fraude
+        fraudService.checkForFraud(amount, ipAddress);
+
+        // Vérifier si le compte a des transactions liées à un prêt en cours ou en défaut
+        List<Transaction> loanTransactions = transactionRepository.findByAccountIdAndLoanStatusIn(
+                accountId, List.of(Loan_Status.IN_PROGRESS, Loan_Status.DEFAULT));
+        double remainingAmount = amount;
+        if (!loanTransactions.isEmpty()) {
+            // Récupérer le prêt lié
+            Loan loan = loanTransactions.get(0).getLoan(); // Supposons qu'un seul prêt actif existe par compte
+
+            // Récupérer les remboursements en retard
+            List<Repayment> lateRepayments = repaymentRepository.findByLoan_IdLoanAndStatus(loan.getIdLoan(), Repayment_Status.DEFAULT);
+            // double remainingAmount = amount;
+            if (!lateRepayments.isEmpty()) {
+                logger.info("Processing overdue repayments for loan ID: {}", loan.getIdLoan());
+
+                // double remainingAmount = amount;
+
+                for (Repayment repayment : lateRepayments) {
+                    if (remainingAmount <= 0) break; // Stop si plus de fonds disponibles
+
+                    double monthlyAmount = repayment.getMonthly_amount();
+
+                    if (remainingAmount >= monthlyAmount) {
+                        // Couvrir entièrement le remboursement
+                        Transaction transaction = withdrawFunds(accountId, monthlyAmount, ipAddress);
+
+                        repayment.setStatus(Repayment_Status.REPAID_LATE);
+                        repayment.setActualPaymentDate(java.sql.Date.valueOf(LocalDate.now()));
+                        repaymentRepository.save(repayment);
+
+                        remainingAmount -= monthlyAmount;
+                    } else {
+                        // Paiement partiel
+                        Transaction transaction = withdrawFunds(accountId, remainingAmount, ipAddress);
+
+                        repayment.setMonthly_amount(monthlyAmount - remainingAmount);
+                        repayment.setStatus(Repayment_Status.DEFAULT);
+                        repaymentRepository.save(repayment);
+
+                        remainingAmount = 0; // Plus de fonds disponibles
+                    }
+                }
+
+                // Mettre à jour le statut du prêt si tous les remboursements sont payés
+                boolean allRepaymentsPaid = repaymentRepository.findByloanIdLoan(loan.getIdLoan())
+                        .stream()
+                        .allMatch(repayment -> repayment.getStatus() == Repayment_Status.REPAID || repayment.getStatus() == Repayment_Status.REPAID_LATE);
+
+                if (allRepaymentsPaid) {
+                    loan.setStatus(Loan_Status.REPAID_LATE);
+                    loanRepository.save(loan);
+                }
+            }
+        }
+
+        // Ajouter le montant restant au compte après remboursements
+        account.setAmount(account.getAmount() + remainingAmount);
+        accountService.updateAccount(account);
+
+        // Créer et sauvegarder la transaction de dépôt
+        Transaction depositTransaction = new Transaction();
+        depositTransaction.setSource("SYSTEM");
+        depositTransaction.setDestination("ACC-" + accountId);
+        depositTransaction.setAmount(amount);
+        depositTransaction.setFee(determineFeePercentage());
+        depositTransaction.setStatus(Transaction_Status.COMPLETED);
+        depositTransaction.setIpAddress(ipAddress);
+        logger.info("Deposit of {} to account {}", amount, accountId);
+
+        return transactionRepository.save(depositTransaction);
+    }
+
 }

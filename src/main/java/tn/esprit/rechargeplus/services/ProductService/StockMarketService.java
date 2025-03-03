@@ -1,4 +1,4 @@
-package tn.esprit.rechargeplus.services.ProductService;
+/*package tn.esprit.rechargeplus.services.ProductService;
 
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
@@ -77,4 +77,4 @@ public class StockMarketService {
 
         return stockPrices;
     }
-}
+}*/

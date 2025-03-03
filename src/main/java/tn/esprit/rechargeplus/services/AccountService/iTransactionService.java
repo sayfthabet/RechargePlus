@@ -1,5 +1,6 @@
 package tn.esprit.rechargeplus.services.AccountService;
 
+import tn.esprit.rechargeplus.entities.Loan;
 import tn.esprit.rechargeplus.entities.Transaction;
 import java.util.List;
 
@@ -16,4 +17,7 @@ public interface iTransactionService {
     Transaction depositFunds(Long accountId, double amount, String ipAddress);
     Transaction withdrawFunds(Long accountId, double amount, String ipAddress);
     List<Transaction> getTransactionsByAccount(Long accountId);
+    //Loan Transactiosn
+    Transaction depositLoan(Long accountId, double amount, String ipAddress, Loan loan) ;
+
 }

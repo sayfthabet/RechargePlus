@@ -1,4 +1,4 @@
-package tn.esprit.rechargeplus.controllers.ProductController;
+/*package tn.esprit.rechargeplus.controllers.ProductController;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,10 +18,10 @@ public class StockMarketController {
     public Map<String, String> getStockPrices() {
         return stockMarketService.getStockPrices();
     }
-    /*
+
     @GetMapping("/stocks")
     public String getStocks(Model model) {
         model.addAttribute("index", stockMarketService.getStockPrices());
         return "index"; // Refers to stocks.html
-    }*/
-}
+    }
+}*/
