@@ -26,6 +26,7 @@ public class Guarantor {
     private String relationship; // Lien avec l'emprunteur (parent, ami, collègue...)
     private double monthlyIncome; // Revenu mensuel du garant
     private String bankCardNumber; // Numéro de carte bancaire (sécurisé dans un vrai système)
+    private String email;
     private Boolean approuved;
     private int userId;
     @Lob
@@ -135,7 +136,13 @@ public class Guarantor {
         this.loan = loan;
     }
 
+    public String getEmail() {
+        return email;
+    }
 
+    public void setEmail(String email) {
+        this.email = email;
+    }
 }
 
 

@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import tn.esprit.rechargeplus.entities.*;
 import tn.esprit.rechargeplus.repositories.IGuarantorRepository;
@@ -678,6 +679,210 @@ public class LoanService implements ILoanService {
                 + "Veuillez trouver ci-joint le contrat pour votre prêt  ."
                 + "Cordialement,\nL'équipe de l'application RechargePlus ");
 
+        // Uncomment the following lines to attach the generated PDF file to the email
+
+        ByteArrayDataSource dataSource = new ByteArrayDataSource(loanPdfBytes, "application/pdf");
+        message.setDataHandler(new DataHandler(dataSource));
+        message.setFileName("Contrat_Pret_" + loanId + ".pdf");
+
+
+        // Send the email
+        Transport.send(message);
+    }
+    @Scheduled(cron = "0 00 00 * * ?")
+    public void checkLoanRepaymentStatusAndUpdate(Long loanId) throws MessagingException, IOException {
+        // Récupérer tous les remboursements liés au prêt
+        List<Repayment> repayments = repaymentRepository.findByloanIdLoan(loanId);
+        Loan loan = loanRepository.findById(loanId).orElseThrow(() -> new RuntimeException("Loan not found"));
+
+        // Vérifier si tous les remboursements sont en retard (LATE)
+        boolean allRepaymentsLate = repayments.stream()
+                .allMatch(repayment -> repayment.getStatus() == Repayment_Status.DEFAULT);
+
+        // Si tous les remboursements sont LATE, on met le prêt en défaut
+        if (allRepaymentsLate) {
+            loan.setStatus(Loan_Status.DEFAULT);
+            loanRepository.save(loan);
+
+            log.info("Loan with ID {} is now marked as DEFAULT due to all repayments being late.", loanId);
+
+            // Envoyer les emails au client et au garant
+            sendLoanDefaultEmailToClient("rihabc184@gmail.com", loanId);
+            sendLoanDefaultEmailToGuarantor(loan.getGuarantor().getEmail(), loanId);
+        }
+    }
+    @Scheduled(cron = "0 00 00 * * ?")
+    public void checkLoanRepaymentStatus(Long loanId) throws MessagingException, IOException {
+        // Récupérer tous les remboursements liés au prêt
+        List<Repayment> repayments = repaymentRepository.findByloanIdLoan(loanId);
+        Loan loan = loanRepository.findById(loanId)
+                .orElseThrow(() -> new RuntimeException("Loan not found"));
+
+        // Vérifier s'il y a au moins un remboursement en retard
+        boolean hasLateRepayment = repayments.stream()
+                .anyMatch(repayment -> repayment.getStatus() == Repayment_Status.REPAID_LATE);
+
+        // Vérifier si tous les remboursements sont payés (REPAID ou REPAID_LATE)
+        boolean allRepaymentsPaid = repayments.stream()
+                .allMatch(repayment -> repayment.getStatus() == Repayment_Status.REPAID
+                        || repayment.getStatus() == Repayment_Status.REPAID_LATE);
+
+        if (allRepaymentsPaid) {
+            if (hasLateRepayment) {
+                loan.setStatus(Loan_Status.REPAID_LATE);
+                log.info("Loan with ID {} is now marked as REPAID_LATE.", loanId);
+            } else {
+                loan.setStatus(Loan_Status.REPAID);
+                log.info("Loan with ID {} is now marked as REPAID.", loanId);
+            }
+            loanRepository.save(loan);
+
+            // Envoyer un email de confirmation au client et au garant
+            sendLoanPaidEmailToClient("rihabc184@gmail.com", loanId, loan.getStatus());
+
+        }
+    }
+
+    public void  sendLoanPaidEmailToClient(String toEmail, Long loanId,Loan_Status status) throws MessagingException, java.io.IOException {
+        // Générer le PDF en tableau de bytes (this is where you generate the PDF as a byte array)
+        byte[] loanPdfBytes = generateLoanDocument(loanId);
+
+        final String username = "RechargePlus@zoho.com";  // Zoho SMTP username
+        final String password = "RecharginiAman123";  // Zoho SMTP password
+
+        Properties props = new Properties();
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.host", "smtp.zoho.com");  // Zoho SMTP server
+        props.put("mail.smtp.port", "587");  // Port for Zoho's TLS security
+
+        // Create the Session object with authentication
+        Session session = Session.getInstance(props,
+                new Authenticator() {
+                    @Override
+                    protected PasswordAuthentication getPasswordAuthentication() {
+                        return new PasswordAuthentication(username, password);
+                    }
+                });
+
+        // Create a MimeMessage for the email
+        Message message = new MimeMessage(session);
+        String from = "RechargePlus@zohomail.com";  // Sender's email address
+        Loan loan = loanRepository.findById(loanId)
+                .orElseThrow(() -> new RuntimeException("Loan not found"));
+        message.setFrom(new InternetAddress(from));
+        // Set recipient email field
+        message.setRecipient(Message.RecipientType.TO, new InternetAddress(toEmail));  // Dynamic email from parameter
+        // Set email subject field
+        message.setSubject("🎉 Votre prêt a été remboursé !");
+
+        String statusMessage = (status == Loan_Status.REPAID)
+                ? "Félicitations ! Vous avez remboursé votre prêt à temps. ✅"
+                : "Votre prêt est remboursé, mais avec du retard. Faites attention à vos délais la prochaine fois. ⏳";
+
+        message.setText("Cher client,\n\n"
+                + statusMessage + "\n\n"
+                + "Votre prêt avec l'ID " + loanId + " est maintenant considéré comme " + status + ".\n\n"
+                + "Merci de votre confiance.\n\n"
+                + "Cordialement,\n"
+                + "💳 Équipe RechargePlus");
+        ByteArrayDataSource dataSource = new ByteArrayDataSource(loanPdfBytes, "application/pdf");
+        message.setDataHandler(new DataHandler(dataSource));
+        message.setFileName("Contrat_Pret_" + loanId + ".pdf");
+
+
+        // Send the email
+        Transport.send(message);
+    }
+
+    public void sendLoanDefaultEmailToClient(String toEmail, Long loanId) throws MessagingException, java.io.IOException {
+        // Générer le PDF en tableau de bytes (this is where you generate the PDF as a byte array)
+        byte[] loanPdfBytes = generateLoanDocument(loanId);
+
+        final String username = "RechargePlus@zoho.com";  // Zoho SMTP username
+        final String password = "RecharginiAman123";  // Zoho SMTP password
+
+        Properties props = new Properties();
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.host", "smtp.zoho.com");  // Zoho SMTP server
+        props.put("mail.smtp.port", "587");  // Port for Zoho's TLS security
+
+        // Create the Session object with authentication
+        Session session = Session.getInstance(props,
+                new Authenticator() {
+                    @Override
+                    protected PasswordAuthentication getPasswordAuthentication() {
+                        return new PasswordAuthentication(username, password);
+                    }
+                });
+
+        // Create a MimeMessage for the email
+        Message message = new MimeMessage(session);
+        String from = "RechargePlus@zohomail.com";  // Sender's email address
+        Loan loan = loanRepository.findById(loanId)
+                .orElseThrow(() -> new RuntimeException("Loan not found"));
+        message.setFrom(new InternetAddress(from));
+        // Set recipient email field
+        message.setRecipient(Message.RecipientType.TO, new InternetAddress(toEmail));  // Dynamic email from parameter
+        // Set email subject field
+        message.setSubject("🚨 Prêt en défaut de paiement");
+
+        message.setText("Cher client,\n\n"
+                + "Nous vous informons que votre prêt avec l'ID " + loanId + " est en défaut de paiement, "
+                + "en raison de retards dans les remboursements.\n\n"
+                + "Il vous reste encore " + loan.getAmount() + " TND à rembourser.\n\n"
+                + "Nous vous encourageons à régler cette situation dès que possible pour éviter des conséquences supplémentaires.\n\n"
+                + "Cordialement,\n"
+                + "💳 Équipe RechargePlus");
+        // Uncomment the following lines to attach the generated PDF file to the email
+
+        ByteArrayDataSource dataSource = new ByteArrayDataSource(loanPdfBytes, "application/pdf");
+        message.setDataHandler(new DataHandler(dataSource));
+        message.setFileName("Contrat_Pret_" + loanId + ".pdf");
+
+
+        // Send the email
+        Transport.send(message);
+    }
+    public void sendLoanDefaultEmailToGuarantor(String toEmail, Long loanId) throws MessagingException, java.io.IOException {
+        // Générer le PDF en tableau de bytes (this is where you generate the PDF as a byte array)
+        byte[] loanPdfBytes = generateLoanDocument(loanId);
+
+        final String username = "RechargePlus@zoho.com";  // Zoho SMTP username
+        final String password = "RecharginiAman123";  // Zoho SMTP password
+
+        Properties props = new Properties();
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.host", "smtp.zoho.com");  // Zoho SMTP server
+        props.put("mail.smtp.port", "587");  // Port for Zoho's TLS security
+
+        // Create the Session object with authentication
+        Session session = Session.getInstance(props,
+                new Authenticator() {
+                    @Override
+                    protected PasswordAuthentication getPasswordAuthentication() {
+                        return new PasswordAuthentication(username, password);
+                    }
+                });
+
+        // Create a MimeMessage for the email
+        Message message = new MimeMessage(session);
+        String from = "RechargePlus@zohomail.com";  // Sender's email address
+        Loan loan = loanRepository.findById(loanId)
+                .orElseThrow(() -> new RuntimeException("Loan not found"));
+        message.setFrom(new InternetAddress(from));
+        // Set recipient email field
+        message.setRecipient(Message.RecipientType.TO, new InternetAddress(toEmail));  // Dynamic email from parameter
+        // Set email subject field
+        message.setSubject("🚨 Prêt en défaut : Intervention requise");
+        message.setText("Cher garant,\n\n"
+                + "Le prêt de votre client (ID " + loan.getIdLoan() + ") est **en défaut** car **tous les remboursements sont en retard**.\n\n"
+                + "Montant restant à payer : **" + loan.getAmount() + " TND**.\n\n"
+                + "Nous vous conseillons de prendre contact avec votre client pour résoudre cette situation.\n\n"
+                + "Cordialement,\n"
+                + "💳 Équipe RechargePlus");
         // Uncomment the following lines to attach the generated PDF file to the email
 
         ByteArrayDataSource dataSource = new ByteArrayDataSource(loanPdfBytes, "application/pdf");
