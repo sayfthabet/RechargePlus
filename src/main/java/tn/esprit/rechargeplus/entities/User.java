@@ -36,8 +36,10 @@ public class User {
     @OneToOne
     private Role User_Role;
     @OneToMany (mappedBy = "user")
+    @JsonIgnore
     private List<Account> accounts;
     @OneToMany (mappedBy = "user")
+    @JsonIgnore
     private List<Project> projects;
 
     public long getIdUser() {

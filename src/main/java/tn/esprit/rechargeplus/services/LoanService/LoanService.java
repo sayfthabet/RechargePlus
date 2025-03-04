@@ -1,6 +1,9 @@
 package tn.esprit.rechargeplus.services.LoanService;
 
 import com.itextpdf.io.image.ImageDataFactory;
+import com.itextpdf.layout.element.Paragraph;
+import com.itextpdf.layout.properties.HorizontalAlignment;
+import com.itextpdf.layout.properties.TextAlignment;
 import jakarta.mail.*;
 import jakarta.mail.internet.*;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +21,9 @@ import jakarta.activation.DataHandler;
 import jakarta.mail.util.ByteArrayDataSource;
 
 import java.io.IOException;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Properties;
 
 import java.math.BigDecimal;
@@ -489,7 +495,7 @@ public class LoanService implements ILoanService {
         Loan loan1 = loanRepository.findById(loan.getIdLoan()).orElse(null);
 
         // Enregistrer la transaction du prêt
-        transactionService.depositLoan(accountId, grantedAmount, "192.168.1.1", loan1);
+        transactionService.depositLoan(accountId, grantedAmount, "192.168.1.2", loan1);
         log.info("✅ Transaction pour le prêt enregistrée.");
         // Appel du service d'envoi d'email après création du prêt
         try {
@@ -515,8 +521,8 @@ public class LoanService implements ILoanService {
         com.itextpdf.layout.Document document = new com.itextpdf.layout.Document(pdfDoc);
 
         // Charger l'image du logo (assurez-vous que le chemin est correct)
-        String logoPathRight = "C:\\Users\\Rihab\\Downloads\\RechargePlus.png";  // Remplacez par le chemin de votre logo à droite
-        String logoPathLeft = "C:\\Users\\Rihab\\Downloads\\EspritLogo.png"; // Remplacez par le chemin de votre logo à gauche
+        String logoPathRight = "C:\\Users\\Rihab\\Downloads\\RechargePlus.png";  // logo à droite
+        String logoPathLeft = "C:\\Users\\Rihab\\Downloads\\EspritLogo.png"; // logo à gauche
 
 // Logo à droite
         Image logoRight = new Image(ImageDataFactory.create(logoPathRight));
@@ -608,32 +614,62 @@ public class LoanService implements ILoanService {
         // Ajouter les garanties et engagements
         document.add(new com.itextpdf.layout.element.Paragraph("ARTICLE 4 – GARANTIES ET ENGAGEMENTS")
                 .setBold().setFontSize(14));
-        document.add(new com.itextpdf.layout.element.Paragraph("L'Emprunteur s'engage à fournir une garantie sous forme de [Type de garantie : caution, hypothèque, etc.] pour couvrir le prêt."));
+        document.add(new com.itextpdf.layout.element.Paragraph(
+                "L'Emprunteur s'engage à fournir une garantie sous forme de Garant pour couvrir le prêt, portant les informations suivantes :\n\n" +
+                        "Nom complet : " + loan.getGuarantor().getFullName() + "\n" +
+                        "Identifiant unique (CIN/Passport) : " + loan.getGuarantor().getNationalId() + "\n" +
+                        "Numéro de téléphone : " + loan.getGuarantor().getPhoneNumber() + "\n" +
+                        "Lien avec l'emprunteur : " + loan.getGuarantor().getRelationship() + "\n" +
+                        "Email : " + loan.getGuarantor().getEmail()
+        ));
 
         // Ajouter les pénalités en cas de retard
         document.add(new com.itextpdf.layout.element.Paragraph("ARTICLE 5 – RETARD DE PAIEMENT ET CONSÉQUENCES")
                 .setBold().setFontSize(14));
-        document.add(new com.itextpdf.layout.element.Paragraph("En cas de retard de paiement supérieur à [X] jours, l’Emprunteur sera redevable d’une pénalité de [X] % du montant dû par mois de retard."));
+        document.add(new com.itextpdf.layout.element.Paragraph("En cas de retard de paiement supérieur à 7 jours, l’Emprunteur sera redevable d’une pénalité de  2% du montant dû par mois de retard."));
 
         // Ajouter la résiliation du contrat
         document.add(new com.itextpdf.layout.element.Paragraph("ARTICLE 6 – RÉSILIATION DU CONTRAT")
                 .setBold().setFontSize(14));
-        document.add(new com.itextpdf.layout.element.Paragraph("Le contrat pourra être résilié de plein droit en cas de fausse déclaration de l’Emprunteur, de non-paiement de [X] mensualités consécutives, ou d’utilisation frauduleuse des fonds prêtés."));
+        document.add(new com.itextpdf.layout.element.Paragraph("Le contrat pourra être résilié de plein droit en cas de fausse déclaration de l’Emprunteur, de non-paiement de 3 mensualités consécutives, ou d’utilisation frauduleuse des fonds prêtés."));
 
         // Ajouter la loi applicable et la juridiction compétente
         document.add(new com.itextpdf.layout.element.Paragraph("ARTICLE 7 – LOI APPLICABLE ET JURIDICTION COMPÉTENTE")
                 .setBold().setFontSize(14));
         document.add(new com.itextpdf.layout.element.Paragraph("Le présent contrat est régi par les lois en vigueur en Tunisie, notamment le Code des obligations et des contrats. En cas de litige, le Tribunal de commerce de Tunis sera seul compétent."));
+        LocalDate localDate = loan.getRequest_date().toInstant()
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate();
+        // Ajouter un Div pour créer un espace entre le logo et le contenu suivant
+        com.itextpdf.layout.element.Div spacer2 = new com.itextpdf.layout.element.Div();
+        spacer1.setHeight(80); // hauteur de l'espace, ajustable selon la taille du logo
+        document.add(spacer2);
+        // Définir le format
+        // Définir le format de la date
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        String formattedDate = LocalDateTime.now().format(formatter); // Obtenir la date actuelle
 
-        // Ajouter la signature
-        document.add(new com.itextpdf.layout.element.Paragraph("ARTICLE 8 – SIGNATURES")
-                .setBold().setFontSize(14));
-        document.add(new com.itextpdf.layout.element.Paragraph("Fait à [Lieu], le [Date]."));
-        document.add(new com.itextpdf.layout.element.Paragraph("Le Prêteur"));
-        document.add(new com.itextpdf.layout.element.Paragraph("RechargePlus S.A."));
-        document.add(new com.itextpdf.layout.element.Paragraph("[Signature du Prêteur]"));
-        document.add(new com.itextpdf.layout.element.Paragraph("L’Emprunteur"));
-        document.add(new com.itextpdf.layout.element.Paragraph("[Signature de l’Emprunteur]"));
+        // Ajouter le texte à droite
+        Paragraph locationParagraph = new Paragraph("Tunisie, Tunis, Ariana " )
+                .setTextAlignment(TextAlignment.RIGHT);
+        document.add(locationParagraph);
+        Paragraph locationParagraph1 = new Paragraph(" le " + formattedDate)
+                .setTextAlignment(TextAlignment.RIGHT);
+        document.add(locationParagraph1);
+
+        Paragraph companyParagraph = new Paragraph("RechargePlus S.A.")
+                .setTextAlignment(TextAlignment.RIGHT);
+        document.add(companyParagraph);
+
+        // Charger l'image de la signature (chemin correct)
+        String signaturePath = "C:\\Users\\Rihab\\Downloads\\signature.png";
+        Image sign = new Image(ImageDataFactory.create(Paths.get(signaturePath).toAbsolutePath().toString()));
+
+        // Placer la signature SOUS le texte
+        sign.setHorizontalAlignment(HorizontalAlignment.RIGHT);
+        sign.scaleToFit(120, 50); // Ajuste la taille de l'image
+        document.add(sign);
+
 
         // Fermer le document
         document.close();

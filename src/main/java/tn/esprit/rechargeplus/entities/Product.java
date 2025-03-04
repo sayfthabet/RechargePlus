@@ -28,6 +28,7 @@ public class Product {
     @JsonIgnore
     private User user;
     @OneToMany (mappedBy = "product")
+    @JsonIgnore
     private List<Rating> ratings;
     @OneToMany (mappedBy = "product")
     private List<Basket_items> basket_items;

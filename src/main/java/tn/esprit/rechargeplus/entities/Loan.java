@@ -1,5 +1,6 @@
 package tn.esprit.rechargeplus.entities;
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
@@ -31,7 +32,7 @@ public class Loan {
     @Lob // Annonce que cet attribut contient de grandes données (comme un fichier)
     private byte[] loanPdf;
     @OneToMany (mappedBy = "loan")
-    //@JsonManagedReference
+    @JsonIgnore
     private List<Transaction> transactions;
     @OneToMany (mappedBy = "loan")
     private List<Repayment> repayments;
@@ -132,5 +133,13 @@ public class Loan {
 
     public void setLoanPdf(byte[] loanPdf) {
         this.loanPdf = loanPdf;
+    }
+
+    public Guarantor getGuarantor() {
+        return guarantor;
+    }
+
+    public void setGuarantor(Guarantor guarantor) {
+        this.guarantor = guarantor;
     }
 }

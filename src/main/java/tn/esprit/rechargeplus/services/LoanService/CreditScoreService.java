@@ -9,6 +9,7 @@ import tn.esprit.rechargeplus.repositories.AccountRepository.TransactionReposito
 
 
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -47,7 +48,9 @@ public class CreditScoreService implements ICreditScoreService {
      * Vérifie si l'utilisateur a des prêts deja remboursés (Ancien Client).
      */
     public boolean hasExistingLoan(long accountId) {
-        List<Loan> loans = loanRepository.findByTransactionsAccountIdAndStatus(accountId, Loan_Status.REPAID);
+        // Récupère les prêts ayant un statut REPAID ou REPAID_LATE
+        List<Loan> loans = loanRepository.findByTransactionsAccountIdAndStatusIn(accountId,
+                Arrays.asList(Loan_Status.REPAID, Loan_Status.REPAID_LATE));
         return !loans.isEmpty();
     }
     private boolean hasNoRecharges(Long accountId) {
@@ -134,32 +137,46 @@ public class CreditScoreService implements ICreditScoreService {
       return fraudulentTransactionIds;
   }
 
-    public double calculateAverageMonthlyRecharge(Long accountId) {
-        // Récupérer toutes les recharges effectuées par le client
-        List<Transaction> allRecharges = transactionRepository.findByAccountIdAndSourceIsLike(accountId, "SYSTEM");
 
-        // Récupérer les transactions suspectes
-        List<Long> fraudulentTransactionIds = detectFraudulentManipulations(accountId);
+   public double calculateAverageMonthlyRecharge(Long accountId) {
+       // Récupérer toutes les recharges effectuées par le client
+       List<Transaction> allRecharges = transactionRepository.findByAccountIdAndSourceIsLike(accountId, "SYSTEM");
 
-        // Filtrer les transactions suspectes
-        List<Transaction> validRecharges = allRecharges.stream()
-                .filter(recharge -> !fraudulentTransactionIds.contains(recharge.getIdTransaction()))
-                .collect(Collectors.toList());
+       // Récupérer les transactions suspectes
+       List<Long> fraudulentTransactionIds = detectFraudulentManipulations(accountId);
 
-        if (validRecharges.isEmpty()) {
-            return 0;
-        }
+       // Filtrer les transactions suspectes
+       List<Transaction> validRecharges = allRecharges.stream()
+               .filter(recharge -> !fraudulentTransactionIds.contains(recharge.getIdTransaction()))
+               .toList();
 
-        // Grouper par mois et calculer la moyenne mensuelle
-        Map<YearMonth, Double> monthlySums = validRecharges.stream()
-                .collect(Collectors.groupingBy(
-                        recharge -> YearMonth.from(recharge.getCreatedAt().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()),
-                        Collectors.summingDouble(Transaction::getAmount)
-                ));
+       if (validRecharges.isEmpty()) {
+           return 0;
+       }
 
-        // Retourner la moyenne mensuelle
-        return monthlySums.values().stream().mapToDouble(Double::doubleValue).average().orElse(0);
-    }
+       // Trouver la date de création du compte (supposons que tu as un champ `createdAt` dans l'entité `Account`)
+       LocalDate accountCreationDate = accountRepository.findById(accountId)
+               .map(account -> account.getCreated_at().toInstant().atZone(ZoneId.systemDefault()).toLocalDate())
+               .orElseThrow(() -> new IllegalArgumentException("Compte non trouvé"));
+
+       // Calculer le nombre de mois écoulés depuis la création du compte
+       LocalDate now = LocalDate.now();
+       long monthsElapsed = ChronoUnit.MONTHS.between(accountCreationDate, now);
+
+       if (monthsElapsed == 0) {
+           // Si l'utilisateur a créé le compte ce mois-ci, on retourne la somme totale des recharges
+           return validRecharges.stream().mapToDouble(Transaction::getAmount).sum();
+       }
+
+       // Calculer la somme des recharges valides
+       double totalRecharge = validRecharges.stream()
+               .mapToDouble(Transaction::getAmount)
+               .sum();
+
+       // Calculer la moyenne mensuelle
+       return totalRecharge / monthsElapsed;
+   }
+
 
     /**
      * Calcule l'écart-type des montants d'une série de transactions.

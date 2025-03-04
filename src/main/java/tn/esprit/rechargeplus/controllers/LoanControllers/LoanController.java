@@ -69,28 +69,7 @@ public class LoanController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
-   /* @GetMapping("/loans/{loanId}/downloadContrat")
-    public ResponseEntity<byte[]> downloadLoanDocument(@PathVariable Long loanId) {
-        try {
-            // Générer le PDF en tant que tableau de bytes
-            byte[] pdfBytes = loanservice.generateLoanDocument(loanId);
 
-
-                // Définir les en-têtes HTTP pour le téléchargement du fichier
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_PDF);
-            headers.setContentDisposition(ContentDisposition.attachment()
-                    .filename("Loan_Document_" + loanId + ".pdf")
-                    .build());
-
-            return ResponseEntity.ok()
-                    .headers(headers)
-                    .body(pdfBytes);
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(null);
-        }
-    }*/
    @GetMapping("/loans/{loanId}/downloadContrat")
    public ResponseEntity<byte[]> downloadLoanDocument(@PathVariable Long loanId) {
        try {
