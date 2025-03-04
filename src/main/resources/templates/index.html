@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Real-Time Stock Prices</title>
+    <meta http-equiv="refresh" content="5"> <!-- Auto-refresh every 5 seconds -->
+</head>
+<body>
+<h1>Stock Prices</h1>
+<table border="1">
+    <tr>
+        <th>Stock Name</th>
+        <th>Price</th>
+    </tr>
+    <tr th:each="stock : ${stocks}">
+        <td th:text="${stock.key}">Stock Name</td>
+        <td th:text="${stock.value}">Price</td>
+    </tr>
+</table>
+</body>
+</html>
