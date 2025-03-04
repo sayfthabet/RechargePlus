@@ -15,7 +15,21 @@ import java.util.List;
 public class AccountController {
     @Autowired
     private  IAccountService accountService;
-
+    /*http://localhost:8082/RechargePlus1/api/accounts*/
+/*{
+    "amount": 10000.50,
+    "status": "ACTIVE",
+    "created_at": "2025-03-04T10:30:00",
+    "updated_at": "2025-03-04T11:00:00",
+    "type": "SAVINGS",
+    "dailyTransactionLimit": 5000.00,
+    "dailyTransactionTotal": 1500.00,
+    "lastTransactionDate": "2025-03-03T15:45:00",
+    "user": {
+        "id": 1
+    }
+}
+*/
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Account createAccount(@RequestBody Account account) {

@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 @Service
 public class StockMarketService {
 
-    @Scheduled(fixedRate = 30000)
+    //@Scheduled(fixedRate = 30000)
     public Map<String, String> getStockPrices() {
         System.setProperty("webdriver.chrome.driver", "C:\\Users\\seift\\Documents\\chromedriver-win64\\chromedriver-win64\\chromedriver.exe");
         ChromeOptions options = new ChromeOptions();

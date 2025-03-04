@@ -74,7 +74,21 @@ public class TransactionController {
 
     /**
      * Transfer funds between two accounts.
+     *
+     *
+     *
+     *
+     * {
+     *     "sourceAccountId": 123,
+     *     "targetAccountId": 456,
+     *     "amount": 100.5,
+     *     "ipAddress": "192.168.1.1"
+     * }
      */
+
+
+    /*http://localhost:8082/RechargePlus1/api/transactions/transfer?sourceAccountId=2&targetAccountId=2&amount=100.5&ipAddress=192.168.1.1
+*/
     @PostMapping("/transfer")
     public ResponseEntity<Transaction> transferFunds(
             @RequestParam Long sourceAccountId,
@@ -96,7 +110,7 @@ public class TransactionController {
     @PostMapping("/reverse/{transactionId}")
     public ResponseEntity<Transaction> reverseTransaction(
             @PathVariable Long transactionId,
-            @RequestParam String reason) {
+            @RequestBody  String reason) {
 
         if (reason == null || reason.isEmpty()) {
             return ResponseEntity.badRequest().body(null); // Validation for non-empty reason
@@ -111,6 +125,7 @@ public class TransactionController {
 
     /**
      * Deposit funds into an account.
+     * http://localhost:8082/RechargePlus1/api/transactions/deposit?accountId=1&amount=1000&ipAddress=19643.1563.56
      */
     @PostMapping("/deposit")
     public ResponseEntity<Transaction> depositFunds(

@@ -205,6 +205,8 @@ public class TransactionService implements iTransactionService {
         return transactionRepository.save(transaction);
     }
 */
+    /*http://localhost:8082/RechargePlus1/api/transactions/withdraw?accountId=2&amount=1000&ipAddress=19643.1563.56
+*/
     @Override
     @Transactional
     public Transaction withdrawFunds(Long accountId, double amount, String ipAddress) {
@@ -234,7 +236,7 @@ public class TransactionService implements iTransactionService {
 
         Transaction transaction = new Transaction();
         transaction.setSource("ACC-" + accountId);
-        transaction.setDestination("SYSTEM");
+        transaction.setDestination("ACC-999");
         transaction.setAmount(amount);
         transaction.setFee(determineFeePercentage());
         transaction.setStatus(Transaction_Status.COMPLETED);

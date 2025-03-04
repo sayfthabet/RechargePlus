@@ -42,8 +42,9 @@ public class Transaction {
     @ManyToOne
     private InvestmentRequest investment_request;
     public Account getAccount() {
-        return account;
+        return this.account;
     }
+
     private double fee;
     private boolean isReversed = false;
     private String reversalReason;
