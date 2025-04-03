@@ -22,9 +22,7 @@ public class FraudDetectionService {
         // Initialisation des IPs bloquées à chaque appel
         Set<String> blockedIps = new HashSet<>();
 
-        // Vérification si la chaîne n'est pas vide
         if (!blockedIpsString.isEmpty()) {
-            // Split des adresses IP par la virgule et ajout dans le Set
             String[] ips = blockedIpsString.split(",");
             for (String ip : ips) {
                 String trimmedIp = ip.trim();
@@ -37,7 +35,6 @@ public class FraudDetectionService {
             log.warn("No blocked IPs configured.");
         }
 
-        // Vérification du montant et des adresses IP
         if (amount > amountThreshold) {
             String message = String.format("Potential fraud detected: amount %.2f exceeds threshold of %.2f", amount, amountThreshold);
             log.warn(message);

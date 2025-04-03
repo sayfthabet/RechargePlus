@@ -37,7 +37,7 @@ public class PdfService {
             contentStream.setFont(font, 10);
 
             // 🔹 Charger et ajouter le logo
-            String logoPath = "C:/Users/achre/Desktop/Infini 1/semestre2/PIDEV/Logo/Recharge.jpg";
+            String logoPath = "C:/Users/seift/Desktop/Logo.jpg";
             PDImageXObject logo = PDImageXObject.createFromFile(logoPath, document);
             contentStream.drawImage(logo, 50, 750, 100, 50); // Position et taille du logo
 

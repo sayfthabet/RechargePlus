@@ -128,6 +128,8 @@ public class TransactionController {
 
     /**
      * Withdraw funds from an account.
+     *
+     * http://localhost:8082/RechargePlus1/api/transactions/withdraw?accountId=2&amount=1000&ipAddress=192.168.1.1
      */
     @PostMapping("/withdraw")
     public ResponseEntity<Transaction> withdrawFunds(
